@@ -1,0 +1,1 @@
+# Populated when analysis scripts land (Phase 2, E9/E12). See docs/03-architecture.md C9.

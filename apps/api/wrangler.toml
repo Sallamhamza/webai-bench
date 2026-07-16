@@ -1,0 +1,5 @@
+name = "webai-bench-api"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+# D1 / R2 / Turnstile bindings land in Phase 2 (SP5, E7).
