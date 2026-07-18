@@ -13,7 +13,9 @@ function useHfCorsProbe(): FetchProbe {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(HF_PROBE_URL, { mode: "cors" })
+    // HF's CDN blocks requests whose Referer is on *.workers.dev (returns 404) — see
+    // docs/adr/0001-hf-referrer-policy.md. no-referrer sidesteps it on every host.
+    fetch(HF_PROBE_URL, { mode: "cors", referrerPolicy: "no-referrer" })
       .then((res) => {
         if (cancelled) return;
         if (!res.ok) {
