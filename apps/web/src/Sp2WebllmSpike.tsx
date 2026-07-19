@@ -114,7 +114,11 @@ export function Sp2WebllmSpike() {
         Model: <code>{MODEL_ID}</code> · WebGPU available:{" "}
         <span data-testid="sp2-webgpu">{String(webgpuAvailable)}</span>
       </p>
-      <button type="button" onClick={() => void run()} disabled={phase === "loading" || phase === "generating"}>
+      <button
+        type="button"
+        onClick={() => void run()}
+        disabled={phase === "loading" || phase === "generating"}
+      >
         Run SP2 WebLLM timing spike
       </button>
       {phase === "loading" && <p data-testid="sp2-progress">Loading: {progressText}</p>}
