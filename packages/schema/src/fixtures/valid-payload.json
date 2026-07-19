@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "suite_version": "1.0.0",
+  "client_nonce": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "consent": { "submit": true, "consent_version": "c1" },
+  "env": {
+    "browser": { "family": "chrome", "major": 138 },
+    "os": { "family": "windows", "version_coarse": "11" },
+    "gpu": { "vendor": "nvidia", "architecture": "ampere" },
+    "webgpu": {
+      "available": true,
+      "features": ["shader-f16", "timestamp-query"],
+      "limits": { "maxBufferSize": 2147483648, "maxStorageBufferBindingSize": 1073741824 }
+    },
+    "wasm": { "simd": true, "threads": true },
+    "cross_origin_isolated": true,
+    "hardware_concurrency": 8,
+    "device_memory_gb": 8,
+    "execution_context": "worker"
+  },
+  "micro": {
+    "matmul_f32_gflops": { "median": 412.5, "min": 401.0, "max": 420.1 },
+    "matmul_f16_gflops": null,
+    "mem_bw_gbps": { "median": 88.2, "min": 85.0, "max": 91.3 },
+    "wasm_score_single": { "median": 1520, "min": 1490, "max": 1544 },
+    "wasm_score_multi": { "median": 9800, "min": 9500, "max": 10100 }
+  },
+  "cells": [
+    {
+      "cell_id": "smollm2-1.7b__q4f16__webllm__webgpu",
+      "model_id": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+      "revision": "abc123def456",
+      "quant": "q4f16",
+      "runtime": "webllm",
+      "runtime_version": "0.2.79",
+      "backend": "webgpu",
+      "status": "success",
+      "error_code": null,
+      "download": { "mb": 1042.7, "ms": 183200 },
+      "cache_hit": false,
+      "integrity_verified": true,
+      "init_ms": 8450,
+      "ttft_ms": { "median": 910, "min": 870, "max": 1310 },
+      "decode_tps": { "median": 14.2, "min": 13.8, "max": 14.6 },
+      "tokens_generated": 128,
+      "runtime_reported_tps": 14.5,
+      "fixture_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "flags": ["thermal_variance"]
+}
