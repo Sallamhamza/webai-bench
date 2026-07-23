@@ -10,6 +10,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@mlc-ai/web-llm": "^0.2.84",
     "@webai-bench/harness": "workspace:*",
     "@webai-bench/registry": "workspace:*",
