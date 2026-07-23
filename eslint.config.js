@@ -23,6 +23,9 @@ export default [
     },
     rules: {
       ...tseslint.configs.recommended.rules,
+      // tsc already checks this, more accurately (it understands ambient/global types like
+      // Cloudflare's D1Database); no-undef produces false positives on TS-only globals.
+      "no-undef": "off",
     },
   },
   prettier,

@@ -2,4 +2,12 @@ name = "webai-bench-api"
 main = "src/index.ts"
 compatibility_date = "2026-01-01"
 
-# D1 / R2 / Turnstile bindings land in Phase 2 (SP5, E7).
+# SP5 spike (docs/08-delivery-plan.md §2). Real ingest bindings/config land properly in Phase 2
+# (E7). database_id below is filled in after creating the D1 database (see docs/spikes/sp5-findings.md).
+[[d1_databases]]
+binding = "DB"
+database_name = "webai-bench-toy-db"
+database_id = "e97bd1b0-d5b1-41f8-9981-2172bd648a2f"
+
+# TURNSTILE_SECRET_KEY is set as an encrypted secret via the Cloudflare dashboard
+# (Settings → Variables and Secrets), never committed here.
