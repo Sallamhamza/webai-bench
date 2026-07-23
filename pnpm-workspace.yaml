@@ -3,5 +3,7 @@ packages:
   - "packages/*"
 allowBuilds:
   esbuild: true
+  onnxruntime-node: false
+  protobufjs: false
   sharp: true
   workerd: true
