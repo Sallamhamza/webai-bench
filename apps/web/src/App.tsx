@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Sp2WebllmSpike } from "./Sp2WebllmSpike";
 import { Sp4VarianceStudy } from "./Sp4VarianceStudy";
 import { Sp3TransformersEmbedding } from "./Sp3TransformersEmbedding";
+import { Sp5ToyIngest } from "./Sp5ToyIngest";
 
 // SP1 spike (docs/08-delivery-plan.md §2): prove Cloudflare Pages gives us
 // cross-origin isolation and that Hugging Face Hub CDN fetches survive COEP.
@@ -60,6 +61,7 @@ export function App() {
       <Sp2WebllmSpike />
       <Sp4VarianceStudy />
       <Sp3TransformersEmbedding />
+      <Sp5ToyIngest />
     </main>
   );
 }
