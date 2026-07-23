@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { parseSubmissionPayload } from "@webai-bench/schema";
 
 // SP5 spike (docs/08-delivery-plan.md §2): toy ingest proving Worker + D1 + Turnstile round
@@ -17,6 +18,18 @@ interface ToyResultRow {
 }
 
 const app = new Hono<{ Bindings: Env }>();
+
+// SP5 spike: the web app and API live on different workers.dev subdomains, so every request is
+// cross-origin. Allowlisting specific origins (not "*") since the real E7 ingest API will need
+// the same treatment, and "*" would also disallow credentials if we ever need them.
+app.use(
+  "*",
+  cors({
+    origin: ["https://webai-bench.hamzaeng277.workers.dev", "http://localhost:5173"],
+    allowHeaders: ["Content-Type", "cf-turnstile-response"],
+    allowMethods: ["GET", "POST"],
+  }),
+);
 
 app.get("/api/v1/health", (c) => c.json({ ok: true, suite: "0.0.0", snapshot_at: null }));
 
