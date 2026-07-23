@@ -5,6 +5,5 @@
     "rootDir": "src",
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["src"],
-  "references": [{ "path": "../../packages/schema" }]
+  "include": ["src"]
 }

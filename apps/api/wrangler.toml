@@ -7,7 +7,7 @@ compatibility_date = "2026-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "webai-bench-toy-db"
-database_id = "REPLACE_AFTER_CREATING_D1_DATABASE"
+database_id = "e97bd1b0-d5b1-41f8-9981-2172bd648a2f"
 
 # TURNSTILE_SECRET_KEY is set as an encrypted secret via the Cloudflare dashboard
 # (Settings → Variables and Secrets), never committed here.
