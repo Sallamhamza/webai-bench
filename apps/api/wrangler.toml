@@ -11,3 +11,9 @@ database_id = "e97bd1b0-d5b1-41f8-9981-2172bd648a2f"
 
 # TURNSTILE_SECRET_KEY is set as an encrypted secret via the Cloudflare dashboard
 # (Settings → Variables and Secrets), never committed here.
+
+# Runtime invocation logs (request/response metadata + cpuTimeMs/wallTimeMs) — enabled during
+# SP5 to read real CPU time; see docs/spikes/sp5-findings.md and docs/quotas.md.
+[observability.logs]
+enabled = true
+invocation_logs = true
