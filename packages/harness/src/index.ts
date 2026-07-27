@@ -15,3 +15,9 @@ export {
   type CellRunStatus,
   type RunCellOptions,
 } from "./runner";
+export {
+  writeCrashMarker,
+  clearCrashMarker,
+  checkForStaleCrashMarker,
+  type CrashMarker,
+} from "./crashMarker";
