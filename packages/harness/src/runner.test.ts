@@ -1,6 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
-import { checkMinRequirements, runCell, type CellAdapter } from "./runner";
+import {
+  checkMinRequirements,
+  runCell,
+  WatchdogTimeoutError,
+  type CellAdapter,
+  type CellSample,
+} from "./runner";
 import type { ProbeResult } from "./probe";
+
+/** A promise that never settles — the "hangs on command" fake adapter behavior FR2.4 AC4 asks for. */
+function hang<T>(): Promise<T> {
+  return new Promise<T>(() => {});
+}
 
 function fakeProbe(overrides: Partial<ProbeResult> = {}): ProbeResult {
   return {
@@ -240,5 +251,121 @@ describe("runCell — teardown (step 8)", () => {
 
     expect(result.status).toBe("error");
     expect(result.reason).toBe("measurement failed");
+  });
+});
+
+describe("runCell — watchdog timeouts (FR2.4)", () => {
+  it("times out a hanging init() at timeout_init_ms, still tears down (AC1)", async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = fakeAdapter({ init: vi.fn(() => hang<void>()) });
+
+      const promise = runCell(adapter, {}, fakeProbe(), { timeoutInitMs: 120_000 });
+      await vi.advanceTimersByTimeAsync(120_000);
+      const result = await promise;
+
+      expect(result.status).toBe("timeout");
+      expect(result.reason).toMatch(/^init exceeded its 120000ms timeout$/);
+      expect(result.initMs).toBeNull();
+      expect(adapter.dispose).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("times out a hanging measured rep at timeout_run_ms, still tears down (AC2)", async () => {
+    vi.useFakeTimers();
+    try {
+      const runOnce = vi
+        .fn()
+        .mockResolvedValueOnce({ ttftMs: 1, tokensGenerated: 1, runtimeReportedTps: 1 }) // warmup
+        .mockImplementationOnce(() => hang<CellSample>()); // rep 1 hangs
+      const adapter = fakeAdapter({ runOnce });
+
+      const promise = runCell(adapter, {}, fakeProbe(), {
+        cooldownMs: 0,
+        timeoutRunMs: 90_000,
+      });
+      await vi.advanceTimersByTimeAsync(90_000);
+      const result = await promise;
+
+      expect(result.status).toBe("timeout");
+      expect(result.reason).toMatch(/^measured rep 1 exceeded its 90000ms timeout$/);
+      expect(result.samples).toEqual([]);
+      expect(adapter.dispose).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("times out a hanging warmup pass too, naming it distinctly from a measured rep", async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = fakeAdapter({ runOnce: vi.fn(() => hang<CellSample>()) });
+
+      const promise = runCell(adapter, {}, fakeProbe(), { timeoutRunMs: 90_000 });
+      await vi.advanceTimersByTimeAsync(90_000);
+      const result = await promise;
+
+      expect(result.status).toBe("timeout");
+      expect(result.reason).toMatch(/^warmup exceeded its 90000ms timeout$/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("uses the registry-supplied timeout values, not a hardcoded constant (AC5)", async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = fakeAdapter({ init: vi.fn(() => hang<void>()) });
+
+      // A much shorter, cell-specific value than the 120s default — proves the runner actually
+      // uses what's passed in rather than an internal constant.
+      const promise = runCell(adapter, {}, fakeProbe(), { timeoutInitMs: 5_000 });
+      await vi.advanceTimersByTimeAsync(5_000);
+      const result = await promise;
+
+      expect(result.status).toBe("timeout");
+      expect(result.reason).toMatch(/5000ms/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves no stray timers behind after a successful run (AC3)", async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = fakeAdapter();
+      const promise = runCell(adapter, {}, fakeProbe(), { cooldownMs: 0 });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(result.status).toBe("success");
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves no stray timers behind after init-error (non-timeout failure)", async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = fakeAdapter({ init: vi.fn().mockRejectedValue(new Error("boom")) });
+      const promise = runCell(adapter, {}, fakeProbe());
+      await vi.advanceTimersByTimeAsync(0);
+      const result = await promise;
+
+      expect(result.status).toBe("init-error");
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects with WatchdogTimeoutError internally (exported for callers that need to distinguish it)", () => {
+    const err = new WatchdogTimeoutError("init", 120_000);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe("WatchdogTimeoutError");
+    expect(err.message).toBe("init exceeded its 120000ms timeout");
   });
 });

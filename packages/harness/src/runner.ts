@@ -1,11 +1,11 @@
 import type { ProbeResult } from "./probe";
 
-// Runner state machine (E1-S2, docs/04-benchmark-methodology.md §4 — normative, "law"). This
-// implements steps 1, 2, 4, 5, 6, 8 of the 8-step sequence exactly as specified. Steps 3
-// (crash marker, E1-S4), 7's watchdog half (E1-S3) and visibility guard (E1-S5) are deliberately
-// separate stories — this file has no knowledge of them. Stats/median computation and assembling
-// a schema-conformant ResultDraft are E1-S6, also out of scope here: runCell() returns raw
-// per-rep samples, not aggregated numbers.
+// Runner state machine (E1-S2/E1-S3, docs/04-benchmark-methodology.md §4 — normative, "law").
+// This implements steps 1, 2, 4, 5, 6, 8 of the 8-step sequence exactly as specified, plus
+// per-step watchdog timeouts (FR2.4). Step 3 (crash marker, E1-S4) and the visibility-guard half
+// of step 7 (E1-S5) are deliberately separate stories — this file has no knowledge of them.
+// Stats/median computation and assembling a schema-conformant ResultDraft are E1-S6, also out of
+// scope here: runCell() returns raw per-rep samples, not aggregated numbers.
 //
 // CellAdapter is deliberately minimal, not the full C3 RuntimeAdapter shape from
 // 03-architecture.md (init/generate/embed/dispose/meta) — real per-runtime adapters (E2) will
@@ -13,7 +13,8 @@ import type { ProbeResult } from "./probe";
 // runOnce() to this runner. That mapping is E2's concern; this story only proves the sequencing,
 // tested against fake adapters (matching the plan's own testing approach for E1-S3).
 
-export type CellRunStatus = "unsupported" | "download-error" | "init-error" | "error" | "success";
+export type CellRunStatus =
+  "unsupported" | "download-error" | "init-error" | "timeout" | "error" | "success";
 
 export interface CellSample {
   ttftMs: number | null;
@@ -49,8 +50,9 @@ export interface MinRequirements {
 export interface CellRunResult {
   status: CellRunStatus;
   /** Human-readable reason, always present on non-success (FR1.3-style "requires X — reason"
-   * for unsupported; error message for the rest). Never surfaced to end users verbatim without
-   * sanitization — that's a UI (E4) concern. */
+   * for unsupported; error message for the rest; "<stage> exceeded its <n>ms timeout" for
+   * timeouts). Never surfaced to end users verbatim without sanitization — that's a UI (E4)
+   * concern; E4 is also responsible for naming the cell alongside this reason (FR2.4 AC6). */
   reason?: string;
   download: DownloadResult | null;
   cacheHit: boolean;
@@ -65,10 +67,26 @@ export interface RunCellOptions {
   repsPerCell?: number;
   /** Macrotask yield between measured reps. Default 500ms, per 04 §4 step 6. */
   cooldownMs?: number;
+  /** Watchdog budget for cold init (FR2.4). Registry-declared per cell (`timeout_init_ms`), not
+   * a hardcoded constant here — the default (120s) only applies when a caller doesn't supply
+   * the registry's actual value. */
+  timeoutInitMs?: number;
+  /** Watchdog budget per warmup/measured-rep call (FR2.4, registry's `timeout_run_ms`). Same
+   * caveat: this default (90s) is a fallback, not the source of truth. */
+  timeoutRunMs?: number;
 }
 
 const DEFAULT_REPS_PER_CELL = 3;
 const DEFAULT_COOLDOWN_MS = 500;
+const DEFAULT_TIMEOUT_INIT_MS = 120_000;
+const DEFAULT_TIMEOUT_RUN_MS = 90_000;
+
+export class WatchdogTimeoutError extends Error {
+  constructor(stage: string, timeoutMs: number) {
+    super(`${stage} exceeded its ${timeoutMs}ms timeout`);
+    this.name = "WatchdogTimeoutError";
+  }
+}
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -76,6 +94,32 @@ function errorMessage(err: unknown): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Races `promise` against a timeout. On timeout, rejects with WatchdogTimeoutError — the
+ * original promise is left to settle on its own (there is no general way to cancel an arbitrary
+ * in-flight adapter call without adapter-specific AbortController support, which isn't part of
+ * the CellAdapter contract). Whichever settles first, the timer is always cleared (FR2.4 AC3:
+ * watchdogs must not leave stray timers behind after a successful, non-timed-out step).
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, stage: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new WatchdogTimeoutError(stage, timeoutMs));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err as Error);
+      },
+    );
+  });
 }
 
 /**
@@ -109,9 +153,9 @@ export function checkMinRequirements(
 
 /**
  * Runs one cell through the normative sequence (04-benchmark-methodology.md §4, steps
- * 1/2/4/5/6/8). Never throws — every failure mode is a terminal CellRunResult status, matching
- * the same never-crash-the-run philosophy as the capability probe (FR1.2) and the watchdog
- * story's intent (E1-S3): one bad cell must not take down the whole suite run.
+ * 1/2/4/5/6/8), with per-step watchdog timeouts (FR2.4). Never throws — every failure mode,
+ * including a timeout, is a terminal CellRunResult status, so one hung cell never blocks the
+ * rest of a run (the caller simply moves on to the next cell instead of awaiting forever).
  */
 export async function runCell(
   adapter: CellAdapter,
@@ -121,6 +165,8 @@ export async function runCell(
 ): Promise<CellRunResult> {
   const repsPerCell = options.repsPerCell ?? DEFAULT_REPS_PER_CELL;
   const cooldownMs = options.cooldownMs ?? DEFAULT_COOLDOWN_MS;
+  const timeoutInitMs = options.timeoutInitMs ?? DEFAULT_TIMEOUT_INIT_MS;
+  const timeoutRunMs = options.timeoutRunMs ?? DEFAULT_TIMEOUT_RUN_MS;
 
   // 1. Preflight
   const unsupportedReason = checkMinRequirements(minRequirements, probeResult);
@@ -135,7 +181,8 @@ export async function runCell(
     };
   }
 
-  // 2. Acquire weights
+  // 2. Acquire weights (no watchdog — FR2.4 only names timeout_init_ms/timeout_run_ms; download
+  // progress/hang handling is a separate concern, not part of this story)
   let download: DownloadResult | null = null;
   let cacheHit = true;
   if (adapter.download) {
@@ -155,19 +202,19 @@ export async function runCell(
   }
 
   // From here on, adapter.init() is attempted, so teardown (step 8) must always be attempted
-  // too — even if init() itself throws partway through allocating GPU/engine resources. Only
-  // the preflight-fail and download-error paths above skip dispose(), since adapter.init() was
-  // never called and there is nothing on the adapter to tear down.
+  // too — even if init() itself throws or times out partway through allocating GPU/engine
+  // resources. Only the preflight-fail and download-error paths above skip dispose(), since
+  // adapter.init() was never called and there is nothing on the adapter to tear down.
   let initMs: number | null = null;
   try {
-    // 4. Cold init
+    // 4. Cold init, watchdog: timeout_init_ms
     try {
       const t0 = performance.now();
-      await adapter.init();
+      await withTimeout(adapter.init(), timeoutInitMs, "init");
       initMs = performance.now() - t0;
     } catch (err) {
       return {
-        status: "init-error",
+        status: err instanceof WatchdogTimeoutError ? "timeout" : "init-error",
         reason: errorMessage(err),
         download,
         cacheHit,
@@ -176,13 +223,13 @@ export async function runCell(
       };
     }
 
-    // 5. Warmup (discarded)
-    await adapter.runOnce();
+    // 5. Warmup (discarded), watchdog: timeout_run_ms
+    await withTimeout(adapter.runOnce(), timeoutRunMs, "warmup");
 
-    // 6. Measured repetitions
+    // 6. Measured repetitions, watchdog: timeout_run_ms per rep
     const samples: CellSample[] = [];
     for (let rep = 0; rep < repsPerCell; rep++) {
-      samples.push(await adapter.runOnce());
+      samples.push(await withTimeout(adapter.runOnce(), timeoutRunMs, `measured rep ${rep + 1}`));
       if (rep < repsPerCell - 1) {
         await sleep(cooldownMs);
       }
@@ -191,7 +238,7 @@ export async function runCell(
     return { status: "success", download, cacheHit, initMs, samples };
   } catch (err) {
     return {
-      status: "error",
+      status: err instanceof WatchdogTimeoutError ? "timeout" : "error",
       reason: errorMessage(err),
       download,
       cacheHit,
@@ -199,8 +246,8 @@ export async function runCell(
       samples: [],
     };
   } finally {
-    // 8. Teardown — always attempted, even on failure mid-measurement. A failing dispose()
-    // must not mask the real result or crash the runner.
+    // 8. Teardown — always attempted, even on failure or timeout mid-measurement. A failing
+    // dispose() must not mask the real result or crash the runner.
     try {
       await adapter.dispose();
     } catch {
