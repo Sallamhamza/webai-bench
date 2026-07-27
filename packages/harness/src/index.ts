@@ -6,6 +6,7 @@ export { probe, type ProbeResult, type BrowserFamily, type OsFamily } from "./pr
 export {
   runCell,
   checkMinRequirements,
+  WatchdogTimeoutError,
   type CellAdapter,
   type CellSample,
   type DownloadResult,
