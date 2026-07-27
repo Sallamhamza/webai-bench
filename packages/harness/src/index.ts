@@ -3,3 +3,14 @@
 export const HARNESS_VERSION = "0.0.0" as const;
 
 export { probe, type ProbeResult, type BrowserFamily, type OsFamily } from "./probe";
+export {
+  runCell,
+  checkMinRequirements,
+  type CellAdapter,
+  type CellSample,
+  type DownloadResult,
+  type MinRequirements,
+  type CellRunResult,
+  type CellRunStatus,
+  type RunCellOptions,
+} from "./runner";
