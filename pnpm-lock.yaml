@@ -106,6 +106,9 @@ importers:
       '@webai-bench/schema':
         specifier: workspace:*
         version: link:../schema
+      '@wllama/wllama':
+        specifier: 3.5.1
+        version: 3.5.1
       wasm-feature-detect:
         specifier: ^1.8.0
         version: 1.8.0
@@ -1188,6 +1191,9 @@ packages:
 
   '@webgpu/types@0.1.71':
     resolution: {integrity: sha512-mMy8/ODcKhab808co15eW+yN+HgXoQxRQHTiBV9Mrvl1r0ufnid7YOcI+gi4eUWSWl9ezD6TW2KXccrL8HCh2A==}
+
+  '@wllama/wllama@3.5.1':
+    resolution: {integrity: sha512-m5L0KKtmUTKz5lGvVVa/Y3qRtoobu80Jne51U0CSR6O930aOUURzhMEAolNsN4v0kfQ9u58wi2IdpUicLfaXUw==}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -3017,6 +3023,8 @@ snapshots:
       tinyrainbow: 2.0.0
 
   '@webgpu/types@0.1.71': {}
+
+  '@wllama/wllama@3.5.1': {}
 
   acorn-jsx@5.3.2(acorn@8.17.0):
     dependencies:
