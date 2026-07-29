@@ -14,6 +14,7 @@
     "@mlc-ai/web-llm": "0.2.84",
     "@webai-bench/registry": "workspace:*",
     "@webai-bench/schema": "workspace:*",
+    "@wllama/wllama": "3.5.1",
     "wasm-feature-detect": "^1.8.0"
   },
   "devDependencies": {

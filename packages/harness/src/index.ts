@@ -37,3 +37,4 @@ export {
   createTransformersJsAdapter,
   type TransformersJsAdapterConfig,
 } from "./adapters/transformersjs";
+export { createWllamaAdapter, type WllamaAdapterConfig } from "./adapters/wllama";

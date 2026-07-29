@@ -51,3 +51,28 @@ Format per entry: **Library — what happened — how we handled it — date.**
   Worker and `terminate()` it on dispose (a worker termination _is_ abortable from outside,
   unlike an in-flight WASM call on the main thread) — but that's real scope, not something to
   bolt on quietly here.
+
+## wllama (`@wllama/wllama`) — 2026-07-30
+
+- **`package.json` has no `types`/`exports` field and ships a raw, unbuilt `index.ts` at the
+  package root** (`export * from './src'`, no compiled sibling). Under `moduleResolution:
+"Bundler"`, importing the bare `"@wllama/wllama"` specifier resolves straight to that raw
+  source and pulls their entire `src/` into our own typecheck under our strict settings (which
+  their source doesn't cleanly satisfy — a dozen-plus errors, none of them ours).
+  `skipLibCheck: true` doesn't help since these are `.ts` source files, not `.d.ts` declarations.
+  **Fix:** import the deep path `@wllama/wllama/esm/index.js` instead, which resolves to their
+  actual built output with a proper adjacent `index.d.ts`. **Anyone else importing this library
+  in this repo (the real app bundle, E4) needs the same deep-import workaround** — this isn't
+  specific to the adapter file, it's specific to the package.
+- **Pleasant contrast with WebLLM: real download/init separation.** `wllama.cacheManager.open()`
+  can check for a cache hit before committing to a download, and `.download()` reports
+  structured `{ loaded, total }` byte progress (not free text) — so unlike WebLLM, this adapter
+  _does_ implement a proper `download()` step with real `mb`/`ms` figures, not folded into
+  `init_ms`.
+- **Real abort mechanism: standard `AbortSignal`, not an SDK-specific method.** Completion params
+  take `abortSignal?: AbortSignal`, so `dispose()` can cancel an in-flight `runOnce()` through a
+  real Web API rather than WebLLM's undocumented-behavior `interruptGenerate()` or Transformers.js's
+  total absence of one. Still **unverified against the real library in this session** (no browser
+  available here — see `adapters/README.md`'s test boundary) — the mocked conformance test proves
+  our own wiring passes the signal through correctly, not that llama.cpp's WASM build actually
+  honors it promptly mid-generation.
