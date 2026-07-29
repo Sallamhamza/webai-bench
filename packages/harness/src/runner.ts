@@ -28,12 +28,20 @@ export type CellRunStatus =
   | "success";
 
 export interface CellSample {
+  // Generation-task fields (04 §2) — null for non-generation cells (e.g. embedding).
   ttftMs: number | null;
   /** `(tokensGenerated - 1) / decode-phase seconds`, per 04-benchmark-methodology.md §2 —
    * computed by the adapter (it has the raw post-first-token timing), not derived here. */
   decodeTps: number | null;
   tokensGenerated: number | null;
   runtimeReportedTps: number | null;
+  // Embedding-task field (04 §2) — null for non-embedding cells. See
+  // docs/adr/0003-embedding-cell-fields.md.
+  /** Sentences/second for the standard 64-sentence batch. */
+  embedSps: number | null;
+  /** Whether the runtime's batch call was used (true) or a sequential per-sentence loop (false)
+   * — null when the concept doesn't apply to this cell's task. Constant across a cell's reps. */
+  batching: boolean | null;
 }
 
 export interface DownloadResult {

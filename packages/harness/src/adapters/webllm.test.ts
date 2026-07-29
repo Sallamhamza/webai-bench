@@ -182,16 +182,14 @@ describe("createWebLLMAdapter — runOnce", () => {
     const engine = fakeEngine({
       chat: {
         completions: {
-          create: vi
-            .fn()
-            .mockResolvedValue(
-              fakeStream([
-                {
-                  choices: [{ delta: {} }],
-                  usage: { completion_tokens: 0, extra: { decode_tokens_per_s: 0 } },
-                },
-              ]),
-            ),
+          create: vi.fn().mockResolvedValue(
+            fakeStream([
+              {
+                choices: [{ delta: {} }],
+                usage: { completion_tokens: 0, extra: { decode_tokens_per_s: 0 } },
+              },
+            ]),
+          ),
         },
       },
     });

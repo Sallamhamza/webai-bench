@@ -24,6 +24,8 @@ function sample(overrides: Partial<CellSample> = {}): CellSample {
     decodeTps: 14,
     tokensGenerated: 128,
     runtimeReportedTps: 14.5,
+    embedSps: null,
+    batching: null,
     ...overrides,
   };
 }
@@ -99,6 +101,53 @@ describe("assembleCellResult — success path", () => {
     const { flags } = assembleCellResult(metadata(), successResult(samples));
     expect(flags).toContain("thermal_variance");
     expect(flags).toContain("runtime_disagreement");
+  });
+});
+
+describe("assembleCellResult — embedding cells (ADR 0003)", () => {
+  it("computes embed_sps as a stat value and passes batching through", () => {
+    const samples = [
+      sample({
+        ttftMs: null,
+        decodeTps: null,
+        tokensGenerated: null,
+        runtimeReportedTps: null,
+        embedSps: 500,
+        batching: true,
+      }),
+      sample({
+        ttftMs: null,
+        decodeTps: null,
+        tokensGenerated: null,
+        runtimeReportedTps: null,
+        embedSps: 520,
+        batching: true,
+      }),
+      sample({
+        ttftMs: null,
+        decodeTps: null,
+        tokensGenerated: null,
+        runtimeReportedTps: null,
+        embedSps: 510,
+        batching: true,
+      }),
+    ];
+    const { cell } = assembleCellResult(
+      metadata({ runtime: "transformers.js", backend: "wasm" }),
+      successResult(samples),
+    );
+
+    expect(cell.embed_sps).toEqual({ median: 510, min: 500, max: 520 });
+    expect(cell.batching).toBe(true);
+    expect(cell.ttft_ms).toBeNull();
+    expect(cell.decode_tps).toBeNull();
+    expect(() => CellSchema.parse(cell)).not.toThrow();
+  });
+
+  it("defaults embed_sps/batching to null for a cell with no embedding samples", () => {
+    const { cell } = assembleCellResult(metadata(), successResult([sample()]));
+    expect(cell.embed_sps).toBeNull();
+    expect(cell.batching).toBeNull();
   });
 });
 

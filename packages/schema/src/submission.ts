@@ -109,10 +109,16 @@ export const CellSchema = z
     cache_hit: z.boolean(),
     integrity_verified: z.union([z.boolean(), z.literal("unknown")]),
     init_ms: z.number().nonnegative(),
+    // Generation-task metrics (04 §2) — null for non-generation cells (e.g. embedding).
     ttft_ms: StatValueSchema,
     decode_tps: StatValueSchema,
     tokens_generated: z.number().int().nonnegative(),
     runtime_reported_tps: z.number().nonnegative(),
+    // Embedding-task metric (04 §2) — null for non-embedding cells. See
+    // docs/adr/0003-embedding-cell-fields.md; asr_rtf deliberately not added yet (no ASR
+    // adapter exists to populate it).
+    embed_sps: StatValueSchema,
+    batching: z.boolean().nullable(),
     fixture_sha256: z.string().min(1),
   })
   .strict();
