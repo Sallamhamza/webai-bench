@@ -94,3 +94,33 @@ describe("SubmissionPayloadSchema — boundary and rejection cases", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("SubmissionPayloadSchema — embed_sps/batching (ADR 0003)", () => {
+  it("rejects a cell missing embed_sps or batching entirely (required-but-nullable keys)", () => {
+    const payload = clonePayload(validFixture);
+    const cell = payload.cells[0] as unknown as Record<string, unknown>;
+    delete cell.embed_sps;
+    expect(SubmissionPayloadSchema.safeParse(payload).success).toBe(false);
+  });
+
+  it("accepts an embedding-shaped cell: embed_sps populated, ttft_ms/decode_tps null", () => {
+    const payload = clonePayload(validFixture);
+    const cell = payload.cells[0];
+    if (!cell) throw new Error("unreachable — fixture has one cell");
+    cell.ttft_ms = null;
+    cell.decode_tps = null;
+    cell.tokens_generated = 0;
+    cell.embed_sps = { median: 512.3, min: 498.1, max: 530.7 };
+    cell.batching = true;
+
+    expect(SubmissionPayloadSchema.safeParse(payload).success).toBe(true);
+  });
+
+  it("accepts batching: false (sequential-loop embedding cells)", () => {
+    const payload = clonePayload(validFixture);
+    const cell = payload.cells[0];
+    if (!cell) throw new Error("unreachable — fixture has one cell");
+    cell.batching = false;
+    expect(SubmissionPayloadSchema.safeParse(payload).success).toBe(true);
+  });
+});

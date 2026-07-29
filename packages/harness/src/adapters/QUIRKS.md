@@ -29,3 +29,25 @@ Format per entry: **Library — what happened — how we handled it — date.**
   we scripted to behave correctly. Needs confirmation via the device-lab/Playwright test
   boundary (`adapters/README.md`) before relying on it for the real Stop button
   (`06-security-privacy.md` §6.4).
+
+## Transformers.js (`@huggingface/transformers`) — 2026-07-30
+
+- **WASM beats WebGPU for small models — expect this, don't "fix" it.** SP3 measured WASM
+  ~9.6× faster than WebGPU for a MiniLM-class embedding model on the lead's device (33.6s vs.
+  9.5s init; 1.76s vs. 183ms embed). WebGPU's fixed per-call overhead (shader compile, kernel
+  dispatch, host↔device transfer) doesn't get amortized at this model size. The adapter treats
+  `device` as plain config with no special-casing either backend as "the fast one" — that
+  population-level question (which backend actually wins per device/model) is what the whole
+  project exists to answer, so don't bake an assumption into the adapter that the benchmark is
+  supposed to be testing.
+- **No abort for an in-flight call — this is a real gap, not yet solved.** Unlike WebLLM's
+  `interruptGenerate()`, Transformers.js exposes no way to cancel a `extractor()` call already
+  running a synchronous WASM/WebGPU compute. `dispose()` only frees the underlying ONNX Runtime
+  session; it does not reject whatever call is currently in flight. Confirmed by a test that
+  _expects_ `checkMidRunDisposeAborts` (E2-S4) to fail for this adapter, rather than papering
+  over it — `adapters/transformersjs.test.ts`, "mid-run dispose: a REAL, documented limitation."
+  **Consequence: the Stop button (06-security-privacy.md §6.4) will not promptly interrupt a
+  Transformers.js embedding cell today.** Candidate fix for later: run the pipeline inside a Web
+  Worker and `terminate()` it on dispose (a worker termination _is_ abortable from outside,
+  unlike an in-flight WASM call on the main thread) — but that's real scope, not something to
+  bolt on quietly here.

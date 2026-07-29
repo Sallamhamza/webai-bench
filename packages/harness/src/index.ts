@@ -33,3 +33,7 @@ export {
   checkErrorSurfacing,
 } from "./adapterConformance";
 export { createWebLLMAdapter, type WebLLMAdapterConfig } from "./adapters/webllm";
+export {
+  createTransformersJsAdapter,
+  type TransformersJsAdapterConfig,
+} from "./adapters/transformersjs";

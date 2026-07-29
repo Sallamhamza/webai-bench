@@ -8,6 +8,8 @@ function sample(overrides: Partial<CellSample> = {}): CellSample {
     decodeTps: 14,
     tokensGenerated: 128,
     runtimeReportedTps: 14,
+    embedSps: null,
+    batching: null,
     ...overrides,
   };
 }

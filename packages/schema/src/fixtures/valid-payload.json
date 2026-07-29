@@ -44,6 +44,8 @@
       "decode_tps": { "median": 14.2, "min": 13.8, "max": 14.6 },
       "tokens_generated": 128,
       "runtime_reported_tps": 14.5,
+      "embed_sps": null,
+      "batching": null,
       "fixture_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     }
   ],

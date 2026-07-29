@@ -103,6 +103,8 @@ export function createWebLLMAdapter(config: WebLLMAdapterConfig): CellAdapter {
         decodeTps,
         tokensGenerated: completionTokens,
         runtimeReportedTps,
+        embedSps: null, // WebLLM is a generation runtime, not embedding
+        batching: null,
       };
     },
 

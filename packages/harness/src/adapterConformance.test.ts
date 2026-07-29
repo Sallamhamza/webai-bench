@@ -18,6 +18,8 @@ function goodSample(overrides: Partial<CellSample> = {}): CellSample {
     decodeTps: 14,
     tokensGenerated: 128,
     runtimeReportedTps: 14.5,
+    embedSps: null,
+    batching: null,
     ...overrides,
   };
 }

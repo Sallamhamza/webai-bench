@@ -44,6 +44,9 @@ export function assembleCellResult(
   const runtimeReportedValues = runResult.samples
     .map((s) => s.runtimeReportedTps)
     .filter((v): v is number => v !== null);
+  const embedSpsValues = runResult.samples
+    .map((s) => s.embedSps)
+    .filter((v): v is number => v !== null);
 
   const lastSample = runResult.samples.at(-1);
   const runtimeReportedStat = computeStatValue(runtimeReportedValues);
@@ -68,6 +71,10 @@ export function assembleCellResult(
     decode_tps: computeStatValue(decodeTpsValues),
     tokens_generated: lastSample?.tokensGenerated ?? 0,
     runtime_reported_tps: runtimeReportedStat?.median ?? 0,
+    embed_sps: computeStatValue(embedSpsValues),
+    // Constant across a cell's reps (04 §2) — taken from the last sample rather than asserting
+    // every rep agrees; an adapter that somehow varied it rep-to-rep would be a bug elsewhere.
+    batching: lastSample?.batching ?? null,
     fixture_sha256: metadata.fixtureSha256,
   };
 

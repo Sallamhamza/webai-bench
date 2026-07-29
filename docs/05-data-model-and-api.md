@@ -60,6 +60,8 @@ A field may exist in the submission payload only if it is (a) required for a pub
       "decode_tps": { "median": 14.2, "min": 13.8, "max": 14.6 },
       "tokens_generated": 128,
       "runtime_reported_tps": 14.5,
+      "embed_sps": null,      // sentences/s (embedding cells only, 04 §2); null for generation cells
+      "batching": null,       // true|false for embedding cells; null otherwise — ADR 0003
       "fixture_sha256": "…" 
     }
   ],
