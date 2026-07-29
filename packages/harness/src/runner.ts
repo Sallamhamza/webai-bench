@@ -1,12 +1,12 @@
 import type { ProbeResult } from "./probe";
 import { clearCrashMarker, writeCrashMarker } from "./crashMarker";
+import { isVisible, waitForVisible } from "./visibilityGuard";
 
-// Runner state machine (E1-S2/E1-S3/E1-S4, docs/04-benchmark-methodology.md §4 — normative,
-// "law"). This implements steps 1-6 and 8 of the 8-step sequence exactly as specified, plus
-// per-step watchdog timeouts (FR2.4). The visibility-guard half of step 7 (E1-S5) is a
-// deliberately separate story — this file has no knowledge of it. Stats/median computation and
-// assembling a schema-conformant ResultDraft are E1-S6, also out of scope here: runCell() returns
-// raw per-rep samples, not aggregated numbers.
+// Runner state machine (E1-S2 through E1-S5, docs/04-benchmark-methodology.md §4 — normative,
+// "law"). This implements the full 8-step sequence: preflight, download, crash marker, init,
+// warmup, measured reps, visibility guard, teardown — plus per-step watchdog timeouts (FR2.4).
+// Stats/median computation and assembling a schema-conformant ResultDraft are E1-S6, out of
+// scope here: runCell() returns raw per-rep samples, not aggregated numbers.
 //
 // CellAdapter is deliberately minimal, not the full C3 RuntimeAdapter shape from
 // 03-architecture.md (init/generate/embed/dispose/meta) — real per-runtime adapters (E2) will
@@ -15,7 +15,13 @@ import { clearCrashMarker, writeCrashMarker } from "./crashMarker";
 // tested against fake adapters (matching the plan's own testing approach for E1-S3).
 
 export type CellRunStatus =
-  "unsupported" | "download-error" | "init-error" | "timeout" | "error" | "success";
+  | "unsupported"
+  | "download-error"
+  | "init-error"
+  | "timeout"
+  | "error"
+  | "visibility-interrupted"
+  | "success";
 
 export interface CellSample {
   ttftMs: number | null;
@@ -231,19 +237,38 @@ export async function runCell(
       };
     }
 
+    // 7 (guard, checked at each boundary before 5/6): if the tab isn't visible right now, pause
+    // until it is, and remember that this cell was interrupted — it still runs to completion,
+    // but is reported as "visibility-interrupted" instead of "success" once done.
+    let visibilityInterrupted = false;
+    const guardVisibility = async () => {
+      if (!isVisible()) {
+        visibilityInterrupted = true;
+        await waitForVisible();
+      }
+    };
+
     // 5. Warmup (discarded), watchdog: timeout_run_ms
+    await guardVisibility();
     await withTimeout(adapter.runOnce(), timeoutRunMs, "warmup");
 
     // 6. Measured repetitions, watchdog: timeout_run_ms per rep
     const samples: CellSample[] = [];
     for (let rep = 0; rep < repsPerCell; rep++) {
+      await guardVisibility();
       samples.push(await withTimeout(adapter.runOnce(), timeoutRunMs, `measured rep ${rep + 1}`));
       if (rep < repsPerCell - 1) {
         await sleep(cooldownMs);
       }
     }
 
-    return { status: "success", download, cacheHit, initMs, samples };
+    return {
+      status: visibilityInterrupted ? "visibility-interrupted" : "success",
+      download,
+      cacheHit,
+      initMs,
+      samples,
+    };
   } catch (err) {
     return {
       status: err instanceof WatchdogTimeoutError ? "timeout" : "error",

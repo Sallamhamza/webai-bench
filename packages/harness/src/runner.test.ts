@@ -453,3 +453,82 @@ describe("runCell — crash marker (FR2.5, 04 §4 step 3)", () => {
     expect(stale?.cellId).toBe("abandoned-cell");
   });
 });
+
+function setVisibilityState(state: "visible" | "hidden"): void {
+  Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+}
+
+describe("runCell — visibility guard (FR2.6, 04 §4 step 7)", () => {
+  afterEach(() => {
+    setVisibilityState("visible");
+  });
+
+  it("stays 'success' when the tab is visible throughout", async () => {
+    const adapter = fakeAdapter();
+    const result = await runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
+    expect(result.status).toBe("success");
+  });
+
+  it("pauses before warmup when hidden, then resumes and reports visibility-interrupted", async () => {
+    setVisibilityState("hidden");
+    const adapter = fakeAdapter();
+    const promise = runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
+
+    // Give the guard a chance to register its listener and confirm it's genuinely blocked
+    // (a bare microtask flush isn't enough — init()'s own await chain runs first).
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(adapter.runOnce).not.toHaveBeenCalled();
+
+    setVisibilityState("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    const result = await promise;
+
+    expect(result.status).toBe("visibility-interrupted");
+    expect(result.samples).toHaveLength(3); // still runs to completion once resumed
+  });
+
+  it("pauses at a measured-rep boundary when hidden mid-run", async () => {
+    const runOnce = vi
+      .fn()
+      .mockImplementationOnce(async () => ({
+        ttftMs: 1,
+        tokensGenerated: 1,
+        runtimeReportedTps: 1,
+      })) // warmup, visible
+      .mockImplementationOnce(async () => {
+        // rep 1 completes, then the tab goes hidden before rep 2's boundary check.
+        setVisibilityState("hidden");
+        return { ttftMs: 1, tokensGenerated: 1, runtimeReportedTps: 1 };
+      })
+      .mockResolvedValue({ ttftMs: 1, tokensGenerated: 1, runtimeReportedTps: 1 });
+    const adapter = fakeAdapter({ runOnce });
+
+    const promise = runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
+
+    // Let it run until it blocks at rep 2's boundary.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(runOnce).toHaveBeenCalledTimes(2); // warmup + rep 1 only
+
+    setVisibilityState("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    const result = await promise;
+
+    expect(result.status).toBe("visibility-interrupted");
+    expect(result.samples).toHaveLength(3);
+  });
+
+  it("does not clear the crash marker while paused, and still clears it once done", async () => {
+    setVisibilityState("hidden");
+    const adapter = fakeAdapter();
+    const promise = runCell("paused-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
+
+    await Promise.resolve();
+    expect(checkForStaleCrashMarker()?.cellId).toBe("paused-cell");
+
+    setVisibilityState("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    await promise;
+
+    expect(checkForStaleCrashMarker()).toBeNull();
+  });
+});
