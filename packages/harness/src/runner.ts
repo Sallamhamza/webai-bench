@@ -2,17 +2,21 @@ import type { ProbeResult } from "./probe";
 import { clearCrashMarker, writeCrashMarker } from "./crashMarker";
 import { isVisible, waitForVisible } from "./visibilityGuard";
 
-// Runner state machine (E1-S2 through E1-S5, docs/04-benchmark-methodology.md §4 — normative,
+// Runner state machine (E1-S2 through E1-S6, docs/04-benchmark-methodology.md §4 — normative,
 // "law"). This implements the full 8-step sequence: preflight, download, crash marker, init,
 // warmup, measured reps, visibility guard, teardown — plus per-step watchdog timeouts (FR2.4).
-// Stats/median computation and assembling a schema-conformant ResultDraft are E1-S6, out of
-// scope here: runCell() returns raw per-rep samples, not aggregated numbers.
+// Stats/median computation and assembling a schema-conformant ResultDraft live in stats.ts /
+// resultAssembly.ts: runCell() itself returns raw per-rep samples, not aggregated numbers.
 //
-// CellAdapter is deliberately minimal, not the full C3 RuntimeAdapter shape from
-// 03-architecture.md (init/generate/embed/dispose/meta) — real per-runtime adapters (E2) will
-// each implement whichever of generate/embed/etc. their task needs, then present a single
-// runOnce() to this runner. That mapping is E2's concern; this story only proves the sequencing,
-// tested against fake adapters (matching the plan's own testing approach for E1-S3).
+// CellAdapter is a narrowed view of the full C3 RuntimeAdapter shape from 03-architecture.md
+// (init/generate/embed/dispose/meta) — real per-runtime adapters (E2) each implement whichever
+// of generate/embed/etc. their task needs internally, then present a single runOnce() to this
+// runner (that mapping is E2's concern, not the runner's). `meta` is the one piece of the full
+// C3 shape surfaced here directly: the runner and result assembly both need to know which
+// runtime/version produced a result and whether it can run off-main-thread (03-architecture.md
+// §5.6), and only the adapter itself genuinely knows that — asking every caller to separately
+// track it would drift. The adapter *conformance suite* (E2-S4, adapterConformance.ts) is what
+// makes the rest of this contract executable, checked against fakes before any real SDK lands.
 
 export type CellRunStatus =
   | "unsupported"
@@ -37,7 +41,21 @@ export interface DownloadResult {
   ms: number;
 }
 
+export interface AdapterMeta {
+  /** e.g. "webllm", "transformers.js", "wllama" — matches the registry's runtime id. */
+  runtime: string;
+  /** The exact pinned version of the underlying library (03-architecture.md ADR 5.4: adapter
+   * versions are pinned exactly). Comes from the adapter, not a caller-supplied constant that
+   * could drift out of sync with what's actually installed. */
+  runtimeVersion: string;
+  /** Whether this adapter can run inside a Web Worker (03-architecture.md §5.6). The runner
+   * doesn't act on this directly today — recording it is what lets a future orchestrator decide
+   * main-thread vs. worker execution and tag `execution_context` accordingly. */
+  supportsWorker: boolean;
+}
+
 export interface CellAdapter {
+  meta: AdapterMeta;
   /** Absent means weights are already local/bundled (e.g. a micro-benchmark with no model) —
    * recorded as cache_hit. Present + resolves null means a cache hit was detected at runtime
    * (e.g. Cache API already had the weights); present + resolves a value means a cache miss. */
@@ -47,6 +65,10 @@ export interface CellAdapter {
    * input (04-benchmark-methodology.md §2 fixtures). Called once for warmup (discarded), then
    * `repsPerCell` times for measured reps. */
   runOnce(): Promise<CellSample>;
+  /** Must reject/abort any in-flight runOnce() promptly rather than letting it hang — this is
+   * what the Stop button (06-security-privacy.md §6.4) ultimately depends on. Verified by the
+   * adapter conformance suite's mid-run-dispose check, not by the runner itself (the runner
+   * only calls dispose() at its own teardown step, never concurrently with an in-flight call). */
   dispose(): Promise<void>;
 }
 
