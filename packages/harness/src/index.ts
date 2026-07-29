@@ -10,6 +10,7 @@ export {
   type CellAdapter,
   type CellSample,
   type DownloadResult,
+  type AdapterMeta,
   type MinRequirements,
   type CellRunResult,
   type CellRunStatus,
@@ -24,3 +25,10 @@ export {
 export { isVisible, waitForVisible } from "./visibilityGuard";
 export { computeStatValue, computeCellFlags, type StatValue } from "./stats";
 export { assembleCellResult, type CellMetadata, type AssembledCellResult } from "./resultAssembly";
+export {
+  checkAdapterMeta,
+  checkInitAndDispose,
+  checkRunOnceLifecycle,
+  checkMidRunDisposeAborts,
+  checkErrorSurfacing,
+} from "./adapterConformance";

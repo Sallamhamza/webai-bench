@@ -43,6 +43,7 @@ function fakeProbe(overrides: Partial<ProbeResult> = {}): ProbeResult {
 
 function fakeAdapter(overrides: Partial<CellAdapter> = {}): CellAdapter {
   return {
+    meta: { runtime: "fake-runtime", runtimeVersion: "0.0.0", supportsWorker: false },
     init: vi.fn().mockResolvedValue(undefined),
     runOnce: vi.fn().mockResolvedValue({
       ttftMs: 100,
