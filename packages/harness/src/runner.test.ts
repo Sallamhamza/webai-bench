@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   checkMinRequirements,
   runCell,
@@ -6,12 +6,21 @@ import {
   type CellAdapter,
   type CellSample,
 } from "./runner";
+import { checkForStaleCrashMarker, writeCrashMarker } from "./crashMarker";
 import type { ProbeResult } from "./probe";
 
 /** A promise that never settles — the "hangs on command" fake adapter behavior FR2.4 AC4 asks for. */
 function hang<T>(): Promise<T> {
   return new Promise<T>(() => {});
 }
+
+beforeEach(() => {
+  localStorage.clear();
+});
+
+afterEach(() => {
+  localStorage.clear();
+});
 
 function fakeProbe(overrides: Partial<ProbeResult> = {}): ProbeResult {
   return {
@@ -86,7 +95,7 @@ describe("runCell — preflight (step 1)", () => {
     const adapter = fakeAdapter();
     const probe = fakeProbe({ webgpu: { ...fakeProbe().webgpu, available: false } });
 
-    const result = await runCell(adapter, { webgpu: true }, probe);
+    const result = await runCell("test-cell", adapter, { webgpu: true }, probe);
 
     expect(result.status).toBe("unsupported");
     expect(result.reason).toMatch(/WebGPU/);
@@ -100,7 +109,7 @@ describe("runCell — download (step 2)", () => {
   it("returns download-error and never calls init when download rejects", async () => {
     const adapter = fakeAdapter({ download: vi.fn().mockRejectedValue(new Error("network down")) });
 
-    const result = await runCell(adapter, {}, fakeProbe());
+    const result = await runCell("test-cell", adapter, {}, fakeProbe());
 
     expect(result.status).toBe("download-error");
     expect(result.reason).toBe("network down");
@@ -111,7 +120,7 @@ describe("runCell — download (step 2)", () => {
   it("records cache_hit when download resolves null", async () => {
     const adapter = fakeAdapter({ download: vi.fn().mockResolvedValue(null) });
 
-    const result = await runCell(adapter, {}, fakeProbe(), { cooldownMs: 0 });
+    const result = await runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
 
     expect(result.status).toBe("success");
     expect(result.cacheHit).toBe(true);
@@ -123,7 +132,7 @@ describe("runCell — download (step 2)", () => {
       download: vi.fn().mockResolvedValue({ mb: 1042.7, ms: 183200 }),
     });
 
-    const result = await runCell(adapter, {}, fakeProbe(), { cooldownMs: 0 });
+    const result = await runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
 
     expect(result.status).toBe("success");
     expect(result.cacheHit).toBe(false);
@@ -134,7 +143,7 @@ describe("runCell — download (step 2)", () => {
     const adapter = fakeAdapter();
     delete adapter.download;
 
-    const result = await runCell(adapter, {}, fakeProbe(), { cooldownMs: 0 });
+    const result = await runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
 
     expect(result.status).toBe("success");
     expect(result.cacheHit).toBe(true);
@@ -148,7 +157,7 @@ describe("runCell — init (step 4)", () => {
       init: vi.fn().mockRejectedValue(new Error("adapter unavailable")),
     });
 
-    const result = await runCell(adapter, {}, fakeProbe());
+    const result = await runCell("test-cell", adapter, {}, fakeProbe());
 
     expect(result.status).toBe("init-error");
     expect(result.reason).toBe("adapter unavailable");
@@ -158,7 +167,7 @@ describe("runCell — init (step 4)", () => {
 
   it("measures a non-negative initMs on success", async () => {
     const adapter = fakeAdapter();
-    const result = await runCell(adapter, {}, fakeProbe(), { cooldownMs: 0 });
+    const result = await runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
     expect(result.initMs).toBeGreaterThanOrEqual(0);
   });
 });
@@ -175,7 +184,7 @@ describe("runCell — warmup + measured reps (steps 5-6)", () => {
     for (const s of samples) runOnce.mockResolvedValueOnce(s);
     const adapter = fakeAdapter({ runOnce });
 
-    const result = await runCell(adapter, {}, fakeProbe(), { cooldownMs: 0 });
+    const result = await runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
 
     expect(result.status).toBe("success");
     expect(runOnce).toHaveBeenCalledTimes(4); // 1 warmup + 3 measured
@@ -184,7 +193,10 @@ describe("runCell — warmup + measured reps (steps 5-6)", () => {
 
   it("respects a custom repsPerCell", async () => {
     const adapter = fakeAdapter();
-    const result = await runCell(adapter, {}, fakeProbe(), { repsPerCell: 5, cooldownMs: 0 });
+    const result = await runCell("test-cell", adapter, {}, fakeProbe(), {
+      repsPerCell: 5,
+      cooldownMs: 0,
+    });
     expect(result.status).toBe("success");
     expect(result.samples).toHaveLength(5);
     expect(adapter.runOnce).toHaveBeenCalledTimes(6); // 1 warmup + 5 measured
@@ -194,7 +206,10 @@ describe("runCell — warmup + measured reps (steps 5-6)", () => {
     vi.useFakeTimers();
     try {
       const adapter = fakeAdapter();
-      const promise = runCell(adapter, {}, fakeProbe(), { repsPerCell: 3, cooldownMs: 500 });
+      const promise = runCell("test-cell", adapter, {}, fakeProbe(), {
+        repsPerCell: 3,
+        cooldownMs: 500,
+      });
 
       // init + warmup + rep 1 are all already-resolved mocks, so flushing microtasks (advancing
       // by 0) is enough to reach the first inter-rep cooldown.
@@ -223,7 +238,7 @@ describe("runCell — warmup + measured reps (steps 5-6)", () => {
       .mockRejectedValueOnce(new Error("GPUDevice lost")); // rep 2
     const adapter = fakeAdapter({ runOnce });
 
-    const result = await runCell(adapter, {}, fakeProbe(), { cooldownMs: 0 });
+    const result = await runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
 
     expect(result.status).toBe("error");
     expect(result.reason).toBe("GPUDevice lost");
@@ -236,7 +251,7 @@ describe("runCell — teardown (step 8)", () => {
   it("does not let a failing dispose() mask a successful result", async () => {
     const adapter = fakeAdapter({ dispose: vi.fn().mockRejectedValue(new Error("dispose boom")) });
 
-    const result = await runCell(adapter, {}, fakeProbe(), { cooldownMs: 0 });
+    const result = await runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
 
     expect(result.status).toBe("success");
   });
@@ -247,7 +262,7 @@ describe("runCell — teardown (step 8)", () => {
       dispose: vi.fn().mockRejectedValue(new Error("dispose boom")),
     });
 
-    const result = await runCell(adapter, {}, fakeProbe(), { cooldownMs: 0 });
+    const result = await runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
 
     expect(result.status).toBe("error");
     expect(result.reason).toBe("measurement failed");
@@ -260,7 +275,7 @@ describe("runCell — watchdog timeouts (FR2.4)", () => {
     try {
       const adapter = fakeAdapter({ init: vi.fn(() => hang<void>()) });
 
-      const promise = runCell(adapter, {}, fakeProbe(), { timeoutInitMs: 120_000 });
+      const promise = runCell("test-cell", adapter, {}, fakeProbe(), { timeoutInitMs: 120_000 });
       await vi.advanceTimersByTimeAsync(120_000);
       const result = await promise;
 
@@ -282,7 +297,7 @@ describe("runCell — watchdog timeouts (FR2.4)", () => {
         .mockImplementationOnce(() => hang<CellSample>()); // rep 1 hangs
       const adapter = fakeAdapter({ runOnce });
 
-      const promise = runCell(adapter, {}, fakeProbe(), {
+      const promise = runCell("test-cell", adapter, {}, fakeProbe(), {
         cooldownMs: 0,
         timeoutRunMs: 90_000,
       });
@@ -303,7 +318,7 @@ describe("runCell — watchdog timeouts (FR2.4)", () => {
     try {
       const adapter = fakeAdapter({ runOnce: vi.fn(() => hang<CellSample>()) });
 
-      const promise = runCell(adapter, {}, fakeProbe(), { timeoutRunMs: 90_000 });
+      const promise = runCell("test-cell", adapter, {}, fakeProbe(), { timeoutRunMs: 90_000 });
       await vi.advanceTimersByTimeAsync(90_000);
       const result = await promise;
 
@@ -321,7 +336,7 @@ describe("runCell — watchdog timeouts (FR2.4)", () => {
 
       // A much shorter, cell-specific value than the 120s default — proves the runner actually
       // uses what's passed in rather than an internal constant.
-      const promise = runCell(adapter, {}, fakeProbe(), { timeoutInitMs: 5_000 });
+      const promise = runCell("test-cell", adapter, {}, fakeProbe(), { timeoutInitMs: 5_000 });
       await vi.advanceTimersByTimeAsync(5_000);
       const result = await promise;
 
@@ -336,7 +351,7 @@ describe("runCell — watchdog timeouts (FR2.4)", () => {
     vi.useFakeTimers();
     try {
       const adapter = fakeAdapter();
-      const promise = runCell(adapter, {}, fakeProbe(), { cooldownMs: 0 });
+      const promise = runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });
       await vi.runAllTimersAsync();
       const result = await promise;
 
@@ -351,7 +366,7 @@ describe("runCell — watchdog timeouts (FR2.4)", () => {
     vi.useFakeTimers();
     try {
       const adapter = fakeAdapter({ init: vi.fn().mockRejectedValue(new Error("boom")) });
-      const promise = runCell(adapter, {}, fakeProbe());
+      const promise = runCell("test-cell", adapter, {}, fakeProbe());
       await vi.advanceTimersByTimeAsync(0);
       const result = await promise;
 
@@ -367,5 +382,74 @@ describe("runCell — watchdog timeouts (FR2.4)", () => {
     expect(err).toBeInstanceOf(Error);
     expect(err.name).toBe("WatchdogTimeoutError");
     expect(err.message).toBe("init exceeded its 120000ms timeout");
+  });
+});
+
+describe("runCell — crash marker (FR2.5, 04 §4 step 3)", () => {
+  it("writes the marker before init, clears it on a successful run", async () => {
+    let markerDuringInit: ReturnType<typeof checkForStaleCrashMarker> = null;
+    const adapter = fakeAdapter({
+      init: vi.fn(async () => {
+        markerDuringInit = checkForStaleCrashMarker();
+      }),
+    });
+
+    expect(checkForStaleCrashMarker()).toBeNull();
+    const result = await runCell("my-cell-id", adapter, {}, fakeProbe(), { cooldownMs: 0 });
+
+    expect(result.status).toBe("success");
+    expect(markerDuringInit).toEqual({ cellId: "my-cell-id", ts: expect.any(String) });
+    expect(checkForStaleCrashMarker()).toBeNull(); // cleared at teardown
+  });
+
+  it("clears the marker even when the cell ends in init-error", async () => {
+    const adapter = fakeAdapter({ init: vi.fn().mockRejectedValue(new Error("boom")) });
+    const result = await runCell("my-cell-id", adapter, {}, fakeProbe());
+    expect(result.status).toBe("init-error");
+    expect(checkForStaleCrashMarker()).toBeNull();
+  });
+
+  it("clears the marker even when the cell times out", async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = fakeAdapter({ init: vi.fn(() => hang<void>()) });
+      const promise = runCell("my-cell-id", adapter, {}, fakeProbe(), { timeoutInitMs: 1000 });
+      await vi.advanceTimersByTimeAsync(1000);
+      const result = await promise;
+
+      expect(result.status).toBe("timeout");
+      expect(checkForStaleCrashMarker()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears the marker even when dispose() itself throws", async () => {
+    const adapter = fakeAdapter({ dispose: vi.fn().mockRejectedValue(new Error("dispose boom")) });
+    const result = await runCell("my-cell-id", adapter, {}, fakeProbe(), { cooldownMs: 0 });
+    expect(result.status).toBe("success");
+    expect(checkForStaleCrashMarker()).toBeNull();
+  });
+
+  it("never writes a marker when preflight fails", async () => {
+    const adapter = fakeAdapter();
+    const probe = fakeProbe({ webgpu: { ...fakeProbe().webgpu, available: false } });
+    await runCell("my-cell-id", adapter, { webgpu: true }, probe);
+    expect(checkForStaleCrashMarker()).toBeNull();
+  });
+
+  it("never writes a marker when download fails", async () => {
+    const adapter = fakeAdapter({ download: vi.fn().mockRejectedValue(new Error("network down")) });
+    await runCell("my-cell-id", adapter, {}, fakeProbe());
+    expect(checkForStaleCrashMarker()).toBeNull();
+  });
+
+  it("simulates a real crash: a marker left behind by an abandoned run is found stale later", () => {
+    // No runCell() call completes here — this stands in for a tab that was killed mid-run,
+    // before its finally block ever got a chance to clear the marker.
+    writeCrashMarker("abandoned-cell");
+
+    const stale = checkForStaleCrashMarker();
+    expect(stale?.cellId).toBe("abandoned-cell");
   });
 });

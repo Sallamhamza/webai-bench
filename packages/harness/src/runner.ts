@@ -1,11 +1,12 @@
 import type { ProbeResult } from "./probe";
+import { clearCrashMarker, writeCrashMarker } from "./crashMarker";
 
-// Runner state machine (E1-S2/E1-S3, docs/04-benchmark-methodology.md §4 — normative, "law").
-// This implements steps 1, 2, 4, 5, 6, 8 of the 8-step sequence exactly as specified, plus
-// per-step watchdog timeouts (FR2.4). Step 3 (crash marker, E1-S4) and the visibility-guard half
-// of step 7 (E1-S5) are deliberately separate stories — this file has no knowledge of them.
-// Stats/median computation and assembling a schema-conformant ResultDraft are E1-S6, also out of
-// scope here: runCell() returns raw per-rep samples, not aggregated numbers.
+// Runner state machine (E1-S2/E1-S3/E1-S4, docs/04-benchmark-methodology.md §4 — normative,
+// "law"). This implements steps 1-6 and 8 of the 8-step sequence exactly as specified, plus
+// per-step watchdog timeouts (FR2.4). The visibility-guard half of step 7 (E1-S5) is a
+// deliberately separate story — this file has no knowledge of it. Stats/median computation and
+// assembling a schema-conformant ResultDraft are E1-S6, also out of scope here: runCell() returns
+// raw per-rep samples, not aggregated numbers.
 //
 // CellAdapter is deliberately minimal, not the full C3 RuntimeAdapter shape from
 // 03-architecture.md (init/generate/embed/dispose/meta) — real per-runtime adapters (E2) will
@@ -152,12 +153,14 @@ export function checkMinRequirements(
 }
 
 /**
- * Runs one cell through the normative sequence (04-benchmark-methodology.md §4, steps
- * 1/2/4/5/6/8), with per-step watchdog timeouts (FR2.4). Never throws — every failure mode,
- * including a timeout, is a terminal CellRunResult status, so one hung cell never blocks the
- * rest of a run (the caller simply moves on to the next cell instead of awaiting forever).
+ * Runs one cell through the normative sequence (04-benchmark-methodology.md §4, steps 1-6, 8),
+ * with per-step watchdog timeouts (FR2.4) and a crash marker (FR2.5) bracketing steps 3-8. Never
+ * throws — every failure mode, including a timeout, is a terminal CellRunResult status, so one
+ * hung cell never blocks the rest of a run (the caller simply moves on to the next cell instead
+ * of awaiting forever).
  */
 export async function runCell(
+  cellId: string,
   adapter: CellAdapter,
   minRequirements: MinRequirements,
   probeResult: ProbeResult,
@@ -200,6 +203,11 @@ export async function runCell(
       };
     }
   }
+
+  // 3. Crash marker: written now that weights are acquired and init is about to be attempted.
+  // Cleared in the finally below (step 8). If the tab is killed anywhere between here and then,
+  // this marker survives to be found stale on the next page load (checkForStaleCrashMarker).
+  writeCrashMarker(cellId);
 
   // From here on, adapter.init() is attempted, so teardown (step 8) must always be attempted
   // too — even if init() itself throws or times out partway through allocating GPU/engine
@@ -247,7 +255,11 @@ export async function runCell(
     };
   } finally {
     // 8. Teardown — always attempted, even on failure or timeout mid-measurement. A failing
-    // dispose() must not mask the real result or crash the runner.
+    // dispose() must not mask the real result or crash the runner. Clearing the crash marker
+    // here (not in a separate try) is deliberate: if dispose() hangs or throws, we still want
+    // the marker cleared, since dispose failing isn't the kind of catastrophic failure the
+    // marker exists to catch.
+    clearCrashMarker();
     try {
       await adapter.dispose();
     } catch {
