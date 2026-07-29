@@ -131,10 +131,16 @@ importers:
       '@webai-bench/schema':
         specifier: workspace:*
         version: link:../schema
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
     devDependencies:
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
+      vitest:
+        specifier: ^3.0.4
+        version: 3.2.7(@types/node@26.1.1)(jsdom@25.0.1)
 
   packages/schema:
     dependencies:
