@@ -32,3 +32,4 @@ export {
   checkMidRunDisposeAborts,
   checkErrorSurfacing,
 } from "./adapterConformance";
+export { createWebLLMAdapter, type WebLLMAdapterConfig } from "./adapters/webllm";

@@ -94,6 +94,9 @@ importers:
 
   packages/harness:
     dependencies:
+      '@mlc-ai/web-llm':
+        specifier: 0.2.84
+        version: 0.2.84
       '@webai-bench/registry':
         specifier: workspace:*
         version: link:../registry
