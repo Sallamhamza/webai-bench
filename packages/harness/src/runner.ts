@@ -25,6 +25,9 @@ export type CellRunStatus =
 
 export interface CellSample {
   ttftMs: number | null;
+  /** `(tokensGenerated - 1) / decode-phase seconds`, per 04-benchmark-methodology.md §2 —
+   * computed by the adapter (it has the raw post-first-token timing), not derived here. */
+  decodeTps: number | null;
   tokensGenerated: number | null;
   runtimeReportedTps: number | null;
 }
