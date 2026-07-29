@@ -21,3 +21,4 @@ export {
   checkForStaleCrashMarker,
   type CrashMarker,
 } from "./crashMarker";
+export { isVisible, waitForVisible } from "./visibilityGuard";
