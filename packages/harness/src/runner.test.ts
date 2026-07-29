@@ -44,9 +44,12 @@ function fakeProbe(overrides: Partial<ProbeResult> = {}): ProbeResult {
 function fakeAdapter(overrides: Partial<CellAdapter> = {}): CellAdapter {
   return {
     init: vi.fn().mockResolvedValue(undefined),
-    runOnce: vi
-      .fn()
-      .mockResolvedValue({ ttftMs: 100, tokensGenerated: 128, runtimeReportedTps: 14.5 }),
+    runOnce: vi.fn().mockResolvedValue({
+      ttftMs: 100,
+      decodeTps: 14,
+      tokensGenerated: 128,
+      runtimeReportedTps: 14.5,
+    }),
     dispose: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
@@ -175,10 +178,10 @@ describe("runCell — init (step 4)", () => {
 describe("runCell — warmup + measured reps (steps 5-6)", () => {
   it("calls runOnce warmup + repsPerCell times, discarding the warmup sample", async () => {
     const samples = [
-      { ttftMs: 999, tokensGenerated: 1, runtimeReportedTps: 1 }, // warmup — must be discarded
-      { ttftMs: 100, tokensGenerated: 128, runtimeReportedTps: 14 },
-      { ttftMs: 101, tokensGenerated: 128, runtimeReportedTps: 14.1 },
-      { ttftMs: 102, tokensGenerated: 128, runtimeReportedTps: 14.2 },
+      { ttftMs: 999, decodeTps: 14, tokensGenerated: 1, runtimeReportedTps: 1 }, // warmup — must be discarded
+      { ttftMs: 100, decodeTps: 14, tokensGenerated: 128, runtimeReportedTps: 14 },
+      { ttftMs: 101, decodeTps: 14, tokensGenerated: 128, runtimeReportedTps: 14.1 },
+      { ttftMs: 102, decodeTps: 14, tokensGenerated: 128, runtimeReportedTps: 14.2 },
     ];
     const runOnce = vi.fn();
     for (const s of samples) runOnce.mockResolvedValueOnce(s);
@@ -233,8 +236,18 @@ describe("runCell — warmup + measured reps (steps 5-6)", () => {
   it("returns status 'error' and still tears down when a measured rep throws", async () => {
     const runOnce = vi
       .fn()
-      .mockResolvedValueOnce({ ttftMs: 1, tokensGenerated: 1, runtimeReportedTps: 1 }) // warmup
-      .mockResolvedValueOnce({ ttftMs: 1, tokensGenerated: 1, runtimeReportedTps: 1 }) // rep 1
+      .mockResolvedValueOnce({
+        ttftMs: 1,
+        decodeTps: 14,
+        tokensGenerated: 1,
+        runtimeReportedTps: 1,
+      }) // warmup
+      .mockResolvedValueOnce({
+        ttftMs: 1,
+        decodeTps: 14,
+        tokensGenerated: 1,
+        runtimeReportedTps: 1,
+      }) // rep 1
       .mockRejectedValueOnce(new Error("GPUDevice lost")); // rep 2
     const adapter = fakeAdapter({ runOnce });
 
@@ -293,7 +306,12 @@ describe("runCell — watchdog timeouts (FR2.4)", () => {
     try {
       const runOnce = vi
         .fn()
-        .mockResolvedValueOnce({ ttftMs: 1, tokensGenerated: 1, runtimeReportedTps: 1 }) // warmup
+        .mockResolvedValueOnce({
+          ttftMs: 1,
+          decodeTps: 14,
+          tokensGenerated: 1,
+          runtimeReportedTps: 1,
+        }) // warmup
         .mockImplementationOnce(() => hang<CellSample>()); // rep 1 hangs
       const adapter = fakeAdapter({ runOnce });
 
@@ -492,15 +510,16 @@ describe("runCell — visibility guard (FR2.6, 04 §4 step 7)", () => {
       .fn()
       .mockImplementationOnce(async () => ({
         ttftMs: 1,
+        decodeTps: 14,
         tokensGenerated: 1,
         runtimeReportedTps: 1,
       })) // warmup, visible
       .mockImplementationOnce(async () => {
         // rep 1 completes, then the tab goes hidden before rep 2's boundary check.
         setVisibilityState("hidden");
-        return { ttftMs: 1, tokensGenerated: 1, runtimeReportedTps: 1 };
+        return { ttftMs: 1, decodeTps: 14, tokensGenerated: 1, runtimeReportedTps: 1 };
       })
-      .mockResolvedValue({ ttftMs: 1, tokensGenerated: 1, runtimeReportedTps: 1 });
+      .mockResolvedValue({ ttftMs: 1, decodeTps: 14, tokensGenerated: 1, runtimeReportedTps: 1 });
     const adapter = fakeAdapter({ runOnce });
 
     const promise = runCell("test-cell", adapter, {}, fakeProbe(), { cooldownMs: 0 });

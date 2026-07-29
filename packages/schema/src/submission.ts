@@ -20,9 +20,11 @@ const StatValueSchema = z
   .strict()
   .nullable();
 
-// Only value documented in 05 §2 today; extend this whitelist (with an ADR, per 03 §7) as more
-// flags are defined — deliberately not guessing undocumented values.
-const FlagSchema = z.enum(["thermal_variance"]);
+// "thermal_variance" is 05 §2's documented example; "runtime_disagreement" is normatively
+// defined in 04-benchmark-methodology.md §5 (>15% gap between our bracketed decode_tps and the
+// runtime's self-reported figure) — see docs/adr/0002-runtime-disagreement-flag.md. Extend this
+// whitelist (with an ADR, per 03 §7) as more flags are defined; don't guess undocumented ones.
+const FlagSchema = z.enum(["thermal_variance", "runtime_disagreement"]);
 
 const EnvSchema = z
   .object({
@@ -76,7 +78,10 @@ const MicroSchema = z
 
 // error_code is a fixed enum in packages/schema/errors.ts once that module exists (05 §2: "NEVER
 // free text"); tracked as a follow-up rather than guessing the full list here.
-const CellSchema = z
+// Exported (not just used inline in SubmissionPayloadSchema below) so callers assembling a
+// single cell's result — the harness's stats/assembly module (E1-S6) — can validate against
+// exactly this shape without needing a full multi-cell payload to exist yet.
+export const CellSchema = z
   .object({
     cell_id: z.string().min(1),
     model_id: z.string().min(1),
@@ -126,6 +131,7 @@ export const SubmissionPayloadSchema = z
   .strict();
 
 export type SubmissionPayload = z.infer<typeof SubmissionPayloadSchema>;
+export type CellDraft = z.infer<typeof CellSchema>;
 
 /**
  * Validates a raw submission against the schema and the 32 KB payload-size limit (05 §2).

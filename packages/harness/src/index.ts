@@ -22,3 +22,5 @@ export {
   type CrashMarker,
 } from "./crashMarker";
 export { isVisible, waitForVisible } from "./visibilityGuard";
+export { computeStatValue, computeCellFlags, type StatValue } from "./stats";
+export { assembleCellResult, type CellMetadata, type AssembledCellResult } from "./resultAssembly";
