@@ -1,8 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sp2WebllmSpike } from "./Sp2WebllmSpike";
 import { Sp4VarianceStudy } from "./Sp4VarianceStudy";
 import { Sp3TransformersEmbedding } from "./Sp3TransformersEmbedding";
 import { Sp5ToyIngest } from "./Sp5ToyIngest";
+import { useProbe } from "./useProbe";
+import { buildCellViewModels } from "./registryView";
+import { runnablePresetCellIds, type PresetId } from "./presets";
+import { CellList } from "./CellList";
+import { PresetPicker } from "./PresetPicker";
 
 // SP1 spike (docs/08-delivery-plan.md §2): prove Cloudflare Pages gives us
 // cross-origin isolation and that Hugging Face Hub CDN fetches survive COEP.
@@ -41,6 +46,49 @@ function useHfCorsProbe(): FetchProbe {
   return probe;
 }
 
+// E4-S2: registry-driven cell selection (FR1.3, FR2.8-S). Run wiring (adapters, progress,
+// Stop, results, JSON export) is E4-S3 — for now this section only lets a visitor see and
+// choose which cells they'd run.
+function BenchmarkSetup() {
+  const probeState = useProbe();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const cellViewModels = useMemo(
+    () => (probeState.status === "done" ? buildCellViewModels(probeState.result) : []),
+    [probeState],
+  );
+
+  if (probeState.status === "probing") {
+    return (
+      <section aria-busy="true">
+        <h2>Benchmark setup</h2>
+        <p>Checking device capabilities…</p>
+      </section>
+    );
+  }
+
+  const handlePreset = (preset: PresetId) => {
+    setSelectedIds(new Set(runnablePresetCellIds(preset, cellViewModels)));
+  };
+
+  const handleToggle = (cellId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(cellId)) next.delete(cellId);
+      else next.add(cellId);
+      return next;
+    });
+  };
+
+  return (
+    <section>
+      <h2>Benchmark setup</h2>
+      <PresetPicker onSelect={handlePreset} />
+      <CellList cellViewModels={cellViewModels} selectedIds={selectedIds} onToggle={handleToggle} />
+    </section>
+  );
+}
+
 export function App() {
   const hfProbe = useHfCorsProbe();
   const isolated = typeof self !== "undefined" ? self.crossOriginIsolated : undefined;
@@ -57,6 +105,8 @@ export function App() {
       <p data-testid="hf-status">
         {hfProbe.status}: {hfProbe.detail}
       </p>
+
+      <BenchmarkSetup />
 
       <Sp2WebllmSpike />
       <Sp4VarianceStudy />
