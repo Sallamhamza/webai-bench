@@ -38,3 +38,10 @@ export {
   type TransformersJsAdapterConfig,
 } from "./adapters/transformersjs";
 export { createWllamaAdapter, type WllamaAdapterConfig } from "./adapters/wllama";
+export {
+  runSuite,
+  type SuiteCellSpec,
+  type SuiteProgressEvent,
+  type RunSuiteOptions,
+  type SuiteRunHandle,
+} from "./suiteRunner";
