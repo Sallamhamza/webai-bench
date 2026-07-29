@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "0.2.84",
     "@webai-bench/registry": "workspace:*",
     "@webai-bench/schema": "workspace:*",
     "wasm-feature-detect": "^1.8.0"
