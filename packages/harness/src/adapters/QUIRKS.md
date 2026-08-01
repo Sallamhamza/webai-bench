@@ -129,3 +129,18 @@ what mocks structurally can't: real dispose/memory behavior, real error shapes, 
   available here — see `adapters/README.md`'s test boundary) — the mocked conformance test proves
   our own wiring passes the signal through correctly, not that llama.cpp's WASM build actually
   honors it promptly mid-generation.
+- **`esm/wasm-from-cdn.js` doesn't exist in the published 3.5.1 package — only its
+  `wasm-from-cdn.d.ts`.** Found in E4-S3 while wiring the real app bundle: `import WasmFromCDN
+from "@wllama/wllama/esm/wasm-from-cdn.js"` fails at bundle time (Vite: "Does the file exist?")
+  despite typechecking fine — `tsc` only needs the `.d.ts`, not the runtime file, so this is
+  invisible to typecheck and only surfaces when something actually tries to load the module.
+  Checked the compiled `esm/index.js`: `WasmFromCDN` isn't re-exported from there either (only an
+  unused, unexported `WasmCompatFromCDN` — a _different_, single-thread "compat" build hosted
+  under the separate `@wllama/wllama-compat` package — survives tree-shaking). **Fix:** the
+  package _does_ ship its own default wasm binary locally at `esm/wasm/wllama.wasm`, so
+  `apps/web/src/adapterFactory.ts` imports that directly as a Vite asset URL (`?url`) and builds
+  `AssetsPathConfig` by hand (`{ default: wllamaWasmUrl }`) instead of depending on the missing
+  CDN-URL-constants module. Bonus: this also means wllama's wasm loads from our own bundle rather
+  than reaching out to jsDelivr at runtime — one fewer third-party runtime dependency, not just a
+  workaround. Needed a `vite-env.d.ts` triple-slash reference to `vite/client` in apps/web (wasn't
+  present before) so `?url` imports typecheck.
