@@ -8,6 +8,7 @@ import { buildCellViewModels } from "./registryView";
 import { runnablePresetCellIds, type PresetId } from "./presets";
 import { CellList } from "./CellList";
 import { PresetPicker } from "./PresetPicker";
+import { RunPanel } from "./RunPanel";
 import { VerticalSlice } from "./VerticalSlice";
 
 // SP1 spike (docs/08-delivery-plan.md §2): prove Cloudflare Pages gives us
@@ -82,11 +83,22 @@ function BenchmarkSetup() {
   };
 
   return (
-    <section>
-      <h2>Benchmark setup</h2>
-      <PresetPicker onSelect={handlePreset} />
-      <CellList cellViewModels={cellViewModels} selectedIds={selectedIds} onToggle={handleToggle} />
-    </section>
+    <>
+      <section>
+        <h2>Benchmark setup</h2>
+        <PresetPicker onSelect={handlePreset} />
+        <CellList
+          cellViewModels={cellViewModels}
+          selectedIds={selectedIds}
+          onToggle={handleToggle}
+        />
+      </section>
+      <RunPanel
+        cellViewModels={cellViewModels}
+        selectedIds={selectedIds}
+        probeResult={probeState.result}
+      />
+    </>
   );
 }
 

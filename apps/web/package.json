@@ -16,6 +16,7 @@
     "@webai-bench/harness": "workspace:*",
     "@webai-bench/registry": "workspace:*",
     "@webai-bench/schema": "workspace:*",
+    "@wllama/wllama": "3.5.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
