@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   runSuite,
   type CellRunResult,
@@ -40,6 +40,14 @@ function downloadJson(filename: string, data: unknown) {
 // about turning an already-made selection into a real run.
 export function RunPanel({ cellViewModels, selectedIds, probeResult }: RunPanelProps) {
   const [runState, setRunState] = useState<RunState>({ status: "idle" });
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+
+  // WAI-ARIA APG: an alertdialog should receive focus when it opens, not leave focus stranded
+  // on the (now-hidden) button that triggered it. Cancel, not Continue, gets it — a size
+  // warning's safe default is "don't start the download."
+  useEffect(() => {
+    if (runState.status === "confirm-size") cancelButtonRef.current?.focus();
+  }, [runState.status]);
 
   const selectedCells = cellViewModels
     .filter((vm) => selectedIds.has(vm.cell.cell_id) && vm.runnable)
@@ -106,7 +114,11 @@ export function RunPanel({ cellViewModels, selectedIds, probeResult }: RunPanelP
           <button type="button" onClick={startRun}>
             Continue
           </button>
-          <button type="button" onClick={() => setRunState({ status: "idle" })}>
+          <button
+            ref={cancelButtonRef}
+            type="button"
+            onClick={() => setRunState({ status: "idle" })}
+          >
             Cancel
           </button>
         </div>
@@ -117,7 +129,7 @@ export function RunPanel({ cellViewModels, selectedIds, probeResult }: RunPanelP
           <button type="button" onClick={runState.stop}>
             Stop
           </button>
-          <ul aria-live="polite">
+          <ul aria-live="polite" aria-label="Run progress">
             {runState.events.map((event, i) => (
               <li key={`${event.cellId}-${event.phase}-${i}`}>
                 {event.cellId}: {event.phase}
@@ -130,8 +142,8 @@ export function RunPanel({ cellViewModels, selectedIds, probeResult }: RunPanelP
 
       {runState.status === "done" ? (
         <div>
-          <h3>Results</h3>
-          <table>
+          <h3 id="run-results-heading">Results</h3>
+          <table aria-labelledby="run-results-heading">
             <thead>
               <tr>
                 <th scope="col">Cell</th>
