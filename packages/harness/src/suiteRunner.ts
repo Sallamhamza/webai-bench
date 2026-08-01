@@ -18,6 +18,15 @@ export interface SuiteCellSpec {
    * since each cell may need a different runtime/model/config entirely. */
   createAdapter: () => CellAdapter;
   minRequirements: MinRequirements;
+  /** Per-cell watchdog overrides (FR2.4: "configurable per registry entry"), e.g. the
+   * registry's timeout_init_ms/timeout_run_ms for this specific cell. Cells in one suite can be
+   * wildly different sizes (a 360M model next to a 1.7B one), so a single RunSuiteOptions-level
+   * timeout applied to every cell isn't just imprecise, it's wrong — found via a real download
+   * timing out under the global default despite the registry declaring a larger budget for that
+   * cell (docs/adr — see adapters/QUIRKS.md's vertical-slice notes). Falls back to
+   * RunSuiteOptions' value, then runCell()'s own default, when omitted. */
+  timeoutInitMs?: number;
+  timeoutRunMs?: number;
 }
 
 export interface SuiteProgressEvent {
@@ -92,12 +101,17 @@ export function runSuite(
       const adapter = cell.createAdapter();
       currentAdapter = adapter;
 
+      const cellOptions: RunCellOptions = { ...options };
+      const timeoutInitMs = cell.timeoutInitMs ?? options.timeoutInitMs;
+      const timeoutRunMs = cell.timeoutRunMs ?? options.timeoutRunMs;
+      if (timeoutInitMs !== undefined) cellOptions.timeoutInitMs = timeoutInitMs;
+      if (timeoutRunMs !== undefined) cellOptions.timeoutRunMs = timeoutRunMs;
       const cellResult = await runCell(
         cell.cellId,
         adapter,
         cell.minRequirements,
         probeResult,
-        options,
+        cellOptions,
       );
       currentAdapter = null;
       results.set(cell.cellId, cellResult);

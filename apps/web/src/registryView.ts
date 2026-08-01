@@ -20,7 +20,7 @@ export interface CellViewModel {
 // import from registry to harness). Zod's .optional() infers `T | undefined`, which — under
 // exactOptionalPropertyTypes — isn't assignable to harness's `T?` fields, so this drops
 // explicit-undefined keys rather than just passing them through.
-function toHarnessMinRequirements(min: RegistryMinRequirements): MinRequirements {
+export function toHarnessMinRequirements(min: RegistryMinRequirements): MinRequirements {
   const result: MinRequirements = {};
   if (min.webgpu !== undefined) result.webgpu = min.webgpu;
   if (min.webgpuFeatures !== undefined) result.webgpuFeatures = min.webgpuFeatures;

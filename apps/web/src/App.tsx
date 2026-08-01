@@ -8,6 +8,7 @@ import { buildCellViewModels } from "./registryView";
 import { runnablePresetCellIds, type PresetId } from "./presets";
 import { CellList } from "./CellList";
 import { PresetPicker } from "./PresetPicker";
+import { VerticalSlice } from "./VerticalSlice";
 
 // SP1 spike (docs/08-delivery-plan.md §2): prove Cloudflare Pages gives us
 // cross-origin isolation and that Hugging Face Hub CDN fetches survive COEP.
@@ -107,6 +108,7 @@ export function App() {
       </p>
 
       <BenchmarkSetup />
+      <VerticalSlice />
 
       <Sp2WebllmSpike />
       <Sp4VarianceStudy />
