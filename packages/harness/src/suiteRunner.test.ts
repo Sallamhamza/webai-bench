@@ -42,6 +42,12 @@ function fakeAdapter(overrides: Partial<CellAdapter> = {}): CellAdapter {
   };
 }
 
+function hang<T>(): Promise<T> {
+  return new Promise<T>(() => {
+    // never resolves — used to force a watchdog timeout deterministically under fake timers
+  });
+}
+
 function cellSpec(cellId: string, adapter: CellAdapter): SuiteCellSpec {
   return { cellId, createAdapter: () => adapter, minRequirements: {} };
 }
@@ -102,6 +108,30 @@ describe("runSuite — happy path", () => {
       ["b", "done", 1, 2],
     ]);
     expect(events[1]?.result?.status).toBe("success");
+  });
+
+  it("uses a cell's own timeoutInitMs over the suite-wide default (found via the E4 vertical-slice gate: a real 1.7B-model init was cut off at the global 120s default instead of the registry's declared 180s for that cell)", async () => {
+    vi.useFakeTimers();
+    try {
+      const hangingAdapter = fakeAdapter({ init: vi.fn(() => hang<void>()) });
+      const cell: SuiteCellSpec = {
+        cellId: "big-cell",
+        createAdapter: () => hangingAdapter,
+        minRequirements: {},
+        timeoutInitMs: 5_000,
+      };
+
+      // Suite-wide default is 120s — if the cell-level override weren't honored, this would
+      // still be pending after only 5s and the assertions below would hang the test.
+      const { result } = runSuite([cell], fakeProbe(), { cooldownMs: 0, timeoutInitMs: 120_000 });
+      await vi.advanceTimersByTimeAsync(5_000);
+      const results = await result;
+
+      expect(results.get("big-cell")?.status).toBe("timeout");
+      expect(results.get("big-cell")?.reason).toMatch(/^init exceeded its 5000ms timeout$/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

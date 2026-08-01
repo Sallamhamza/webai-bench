@@ -52,6 +52,59 @@ Format per entry: **Library — what happened — how we handled it — date.**
   unlike an in-flight WASM call on the main thread) — but that's real scope, not something to
   bolt on quietly here.
 
+## E4 vertical-slice gate — real browser, real WebLLM — 2026-08-01
+
+First real-browser run of any adapter in this project (everything above was validated against
+mocked SDKs only — see `adapters/README.md`'s test boundary). Ran `smollm2-360m` then
+`smollm2-1.7b` (both WebLLM/WebGPU) back-to-back via `runSuite()`, N=1, from a throwaway page
+(`apps/web/src/VerticalSlice.tsx`, deleted once E4-S3 lands) — purpose was specifically to catch
+what mocks structurally can't: real dispose/memory behavior, real error shapes, real TTFT timing.
+
+- **Found and fixed a real `suiteRunner.ts` bug: per-cell registry timeouts weren't threaded
+  through.** `SuiteCellSpec` only carried `minRequirements`, so `runSuite()` applied one
+  suite-wide `timeoutInitMs`/`timeoutRunMs` (or `runCell`'s 120s/90s defaults) to _every_ cell,
+  ignoring the registry's own per-cell `timeout_init_ms`/`timeout_run_ms` (FR2.4: "configurable
+  per registry entry"). Concretely: the 1.7B cell's real ~1GB download was cut off at 120s even
+  though the registry declares 180s for that cell — surfaced as `status: "timeout"` in the slice
+  output. **Fixed:** `SuiteCellSpec` now accepts optional `timeoutInitMs`/`timeoutRunMs`
+  overrides that `runSuite()` merges per-cell before calling `runCell()`, falling back to the
+  suite-wide options (test: `suiteRunner.test.ts`, "uses a cell's own timeoutInitMs..."). This is
+  exactly the class of bug the vertical-slice gate exists to catch before E4 builds a full run
+  flow on top of it — a mock-only conformance suite has no way to notice a _suite-level_
+  wiring gap like this, since it only ever exercises one cell's options object directly.
+- **First real TTFT/decode numbers, one data point:** `smollm2-360m` on the test device measured
+  `ttftMs: 4222.5`, `decodeTps: ~11.06` (device's own reported TPS agreed: `~11.19`, ~0.9%
+  agreement — consistent with SP2's ~1.4% finding, now confirmed against this adapter itself, not
+  just the spike). TTFT looks high for a "time to first token" in isolation, but the prompt is a
+  multi-hundred-token passage (04 §2's fixture) and prefill time scales with prompt length, so
+  this is plausibly just prefill-bound on this device rather than a bracket-placement bug —
+  flagged here as a data point, not (yet) a confirmed problem.
+- **FR2.6 (visibility guard) confirmed working against a real browser tab-switch, unplanned.**
+  The first cell came back `status: "visibility-interrupted"` with its sample data still
+  populated (the tab lost focus mid-run, almost certainly from switching to devtools/the
+  console) — exactly the documented contract ("still runs to completion... reported as
+  visibility-interrupted instead of success", `runner.ts` step 7). Nice confirmation this holds
+  up outside the mocked `visibilityGuard.test.ts` world, not something that needed fixing.
+- **Re-run after the timeout fix: `dispose()` releasing GPU memory across sequential cells is now
+  evidenced, not just assumed.** With the fix in place, `smollm2-1.7b` initialized in ~28.9s
+  (well inside its 180s budget — confirms the fix, and shows the old 120s ceiling was never close
+  to enough) and **ran to `status: "success"` immediately after `smollm2-360m`'s `dispose()`**, no
+  crash, no OOM. This was the single highest-risk item on the list (a silent leak would present
+  as "this model doesn't run here" in published data, indistinguishable from a real device
+  limitation) — one clean sequential run doesn't prove _zero_ leak over arbitrarily many cells,
+  but it rules out the catastrophic case and is enough evidence to stop treating this as a
+  blocker before E4. TTFT/decode agreement held at the larger size too: `ttftMs: 10840.6`,
+  `decodeTps: ~2.97` vs. runtime-reported `~3.00` (~1% agreement, consistent with the 360M cell's
+  ~0.9-1.8% across both runs) — the timing bracket generalizes across model sizes, not just the
+  one SP2 originally validated against.
+- **Still genuinely open** (neither slice run exercised these — no real error was thrown, and
+  Stop was never clicked mid-generation): real thrown-error → `CellRunResult.status`/`reason`
+  mapping, and whether `interruptGenerate()` promptly aborts a real in-flight generation (Stop
+  button, `06-security-privacy.md` §6.4). Lower severity than the memory question per the
+  original risk ranking, and naturally exercised once E4-S3 wires a real Stop button and users
+  start hitting real download/init failures — no need for a third throwaway-slice iteration
+  just for these two.
+
 ## wllama (`@wllama/wllama`) — 2026-07-30
 
 - **`package.json` has no `types`/`exports` field and ships a raw, unbuilt `index.ts` at the
