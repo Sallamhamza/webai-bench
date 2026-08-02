@@ -107,6 +107,24 @@ describe("RunPanel", () => {
     expect(runSuiteMock).toHaveBeenCalledOnce();
   });
 
+  it("moves focus to the confirm dialog's Cancel button when it opens (NFR-A1)", async () => {
+    const user = userEvent.setup();
+    const bigCellId = "smollm2-1.7b__q4f32__webllm__webgpu";
+    runSuiteMock.mockReturnValue(mockHandleResolving(new Map()));
+
+    render(
+      <RunPanel
+        cellViewModels={allRunnable()}
+        selectedIds={new Set([bigCellId])}
+        probeResult={fakeProbe()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Start run" }));
+
+    expect(await screen.findByRole("button", { name: "Cancel" })).toHaveFocus();
+  });
+
   it("cancelling the size-warning dialog does not start a run", async () => {
     const user = userEvent.setup();
     const bigCellId = "smollm2-1.7b__q4f32__webllm__webgpu";

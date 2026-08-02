@@ -20,18 +20,16 @@ export function CellList({
     <ul className="cell-list">
       {cellViewModels.map(({ cell, runnable, reason }) => {
         const inputId = `cell-${cell.cell_id}`;
+        const reasonId = `${inputId}-reason`;
         return (
-          <li
-            key={cell.cell_id}
-            aria-disabled={!runnable}
-            className={runnable ? undefined : "cell-unrunnable"}
-          >
+          <li key={cell.cell_id} className={runnable ? undefined : "cell-unrunnable"}>
             <label htmlFor={inputId}>
               <input
                 id={inputId}
                 type="checkbox"
                 checked={selectedIds.has(cell.cell_id)}
                 disabled={disabled || !runnable}
+                aria-describedby={!runnable && reason ? reasonId : undefined}
                 onChange={() => onToggle(cell.cell_id)}
               />
               <span className="cell-name">
@@ -39,7 +37,14 @@ export function CellList({
               </span>
               <span className="cell-size">{"~" + String(cell.expected_download_mb) + " MB"}</span>
             </label>
-            {!runnable && reason ? <p className="cell-reason">{reason}</p> : null}
+            {/* Tied to the checkbox via aria-describedby (not just visually adjacent) so a
+                screen-reader user tabbing to a disabled cell hears *why* it's unrunnable
+                (FR1.3), not just "checkbox, dimmed." */}
+            {!runnable && reason ? (
+              <p id={reasonId} className="cell-reason">
+                {reason}
+              </p>
+            ) : null}
           </li>
         );
       })}
