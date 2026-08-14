@@ -45,3 +45,17 @@ export {
   type RunSuiteOptions,
   type SuiteRunHandle,
 } from "./suiteRunner";
+export {
+  runMicroBenchmarks,
+  runMatmulBenchmark,
+  runMemBandwidthBenchmark,
+  computeWorkingSetBytes,
+  runWasmKernel,
+  runWasmSingleThreadScore,
+  aggregateMultiThreadRounds,
+  multiThreadWorkerCount,
+  WASM_BUFFER_BYTES,
+  WASM_ITERATIONS,
+  type MicroBenchResult,
+  type MatmulResult,
+} from "./microbench";

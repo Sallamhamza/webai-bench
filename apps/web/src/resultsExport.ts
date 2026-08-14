@@ -1,4 +1,9 @@
-import { assembleCellResult, type CellRunResult } from "@webai-bench/harness";
+import {
+  assembleCellResult,
+  type CellRunResult,
+  type MicroBenchResult,
+  type StatValue,
+} from "@webai-bench/harness";
 import type { CellRegistryEntry } from "@webai-bench/registry";
 import { EMBEDDING_SENTENCES, LLM_PROMPT } from "./fixtures";
 import { createAdapterForCell } from "./adapterFactory";
@@ -18,10 +23,35 @@ function fixtureTextForCell(cell: CellRegistryEntry): string {
   return cell.runtime === "transformers.js" ? JSON.stringify(EMBEDDING_SENTENCES) : LLM_PROMPT;
 }
 
+export interface MicroExportPayload {
+  matmul_f32_gflops: StatValue | null;
+  matmul_f16_gflops: StatValue | null;
+  mem_bw_gbps: StatValue | null;
+  wasm_score_single: StatValue | null;
+  wasm_score_multi: StatValue | null;
+}
+
 export interface ExportPayload {
   suite_version: string;
   exported_at: string;
+  micro: MicroExportPayload;
   cells: unknown[];
+}
+
+// packages/schema's MicroSchema (submission.ts) requires every field present, StatValue-or-null
+// each — "not measured" is itself a valid value (the same convention buildExportPayload already
+// uses per-cell, e.g. matmulF32Gflops: null when WebGPU isn't available), not an error state.
+// `micro` defaults to all-null: MicroBenchPanel and RunPanel are currently separate, unconnected
+// pieces of state in App.tsx, so a caller that hasn't run device benchmarks yet — or hasn't
+// wired the two together — gets an honest "not measured" export rather than a thrown error.
+function toMicroExportPayload(micro: MicroBenchResult | null): MicroExportPayload {
+  return {
+    matmul_f32_gflops: micro?.matmulF32Gflops ?? null,
+    matmul_f16_gflops: micro?.matmulF16Gflops ?? null,
+    mem_bw_gbps: micro?.memBwGbps ?? null,
+    wasm_score_single: micro?.wasmScoreSingle ?? null,
+    wasm_score_multi: micro?.wasmScoreMulti ?? null,
+  };
 }
 
 /**
@@ -35,6 +65,7 @@ export async function buildExportPayload(
   cells: readonly CellRegistryEntry[],
   results: ReadonlyMap<string, CellRunResult>,
   suiteVersion: string,
+  micro: MicroBenchResult | null = null,
 ): Promise<ExportPayload> {
   const cellsWithResults = cells.filter((cell) => results.has(cell.cell_id));
 
@@ -68,6 +99,7 @@ export async function buildExportPayload(
   return {
     suite_version: suiteVersion,
     exported_at: new Date().toISOString(),
+    micro: toMicroExportPayload(micro),
     cells: exportedCells,
   };
 }
