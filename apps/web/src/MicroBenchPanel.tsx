@@ -5,6 +5,7 @@ import { runMicroBenchmarks, type MicroBenchResult, type ProbeResult } from "@we
 // concern (packages/harness/src/microbench/wasmScore.ts's header comment explains why the
 // harness itself stays bundler-agnostic here).
 import dotproductWasmUrl from "@webai-bench/harness/src/microbench/wasm/dotproduct.wasm?url";
+import { runMultiThreadWasmScore } from "./runMultiThreadWasmScore";
 
 export interface MicroBenchPanelProps {
   probeResult: ProbeResult;
@@ -20,17 +21,22 @@ function formatStat(stat: { median: number } | null, unit: string, digits = 1): 
 // E1-S7: device-level micro-benchmarks (04 §2's matmul/mem-bandwidth/wasm-score metrics) —
 // separate from the model-cell run flow (RunPanel) because these aren't per-cell measurements,
 // they're per-device ones (packages/schema's MicroSchema is a top-level sibling of `cells` in
-// the submission payload, not part of it). wasm_score_multi isn't wired up yet: that needs a
-// Worker pool (wasmScore.ts's aggregateMultiThreadRounds is ready for it, but the orchestration
-// itself is a separate follow-up), so it's always reported as unavailable here for now.
+// the submission payload, not part of it).
 export function MicroBenchPanel({ probeResult }: MicroBenchPanelProps) {
   const [state, setState] = useState<MicroBenchState>({ status: "idle" });
 
   const handleRun = () => {
     setState({ status: "running" });
     void (async () => {
-      const wasmBytes = await fetch(dotproductWasmUrl).then((res) => res.arrayBuffer());
-      const result = await runMicroBenchmarks(probeResult, wasmBytes);
+      const [wasmBytes, wasmScoreMulti] = await Promise.all([
+        fetch(dotproductWasmUrl).then((res) => res.arrayBuffer()),
+        runMultiThreadWasmScore(
+          dotproductWasmUrl,
+          probeResult.hardwareConcurrency,
+          probeResult.crossOriginIsolated,
+        ),
+      ]);
+      const result = await runMicroBenchmarks(probeResult, wasmBytes, wasmScoreMulti);
       setState({ status: "done", result });
     })();
   };
@@ -57,7 +63,7 @@ export function MicroBenchPanel({ probeResult }: MicroBenchPanelProps) {
           <dt>WASM score (single-thread)</dt>
           <dd>{formatStat(state.result.wasmScoreSingle, "ops/s", 0)}</dd>
           <dt>WASM score (multi-thread)</dt>
-          <dd>not measured yet</dd>
+          <dd>{formatStat(state.result.wasmScoreMulti, "ops/s", 0)}</dd>
         </dl>
       ) : null}
     </section>

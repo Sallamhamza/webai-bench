@@ -5,11 +5,19 @@ import type { MicroBenchResult, ProbeResult } from "@webai-bench/harness";
 import { MicroBenchPanel } from "./MicroBenchPanel";
 
 const runMicroBenchmarksMock = vi.hoisted(() => vi.fn());
+const runMultiThreadWasmScoreMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@webai-bench/harness", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@webai-bench/harness")>();
   return { ...actual, runMicroBenchmarks: runMicroBenchmarksMock };
 });
+
+// jsdom has no real Worker — the actual orchestration is exercised for real in
+// runMultiThreadWasmScore.test.ts (with a fake Worker at the platform boundary); this component
+// test only needs to know MicroBenchPanel calls it and passes the result through.
+vi.mock("./runMultiThreadWasmScore", () => ({
+  runMultiThreadWasmScore: runMultiThreadWasmScoreMock,
+}));
 
 function fakeProbe(): ProbeResult {
   return {
@@ -32,6 +40,7 @@ function fakeProbe(): ProbeResult {
 describe("MicroBenchPanel", () => {
   afterEach(() => {
     runMicroBenchmarksMock.mockReset();
+    runMultiThreadWasmScoreMock.mockReset();
     vi.unstubAllGlobals();
   });
 
@@ -41,22 +50,31 @@ describe("MicroBenchPanel", () => {
       "fetch",
       vi.fn().mockResolvedValue({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) }),
     );
+    const multiStat = { median: 5_000_000, min: 4_800_000, max: 5_200_000 };
+    runMultiThreadWasmScoreMock.mockResolvedValue(multiStat);
     const result: MicroBenchResult = {
       matmulF32Gflops: { median: 1234.5, min: 1200, max: 1300 },
       matmulF16Gflops: null,
       memBwGbps: { median: 42, min: 40, max: 44 },
       wasmScoreSingle: { median: 999_999, min: 900_000, max: 1_000_000 },
-      wasmScoreMulti: null,
+      wasmScoreMulti: multiStat,
     };
     runMicroBenchmarksMock.mockResolvedValue(result);
+    const probe = fakeProbe();
 
-    render(<MicroBenchPanel probeResult={fakeProbe()} />);
+    render(<MicroBenchPanel probeResult={probe} />);
     await user.click(screen.getByRole("button", { name: "Run device benchmarks" }));
 
     expect(await screen.findByText("1234.5 GFLOPS")).toBeInTheDocument();
-    expect(screen.getByText("not available on this device")).toBeInTheDocument();
+    expect(screen.getByText("not available on this device")).toBeInTheDocument(); // matmulF16Gflops
     expect(screen.getByText("42.0 GB/s")).toBeInTheDocument();
-    expect(runMicroBenchmarksMock).toHaveBeenCalledOnce();
+    expect(screen.getByText("5000000 ops/s")).toBeInTheDocument();
+    expect(runMultiThreadWasmScoreMock).toHaveBeenCalledWith(
+      expect.any(String),
+      probe.hardwareConcurrency,
+      probe.crossOriginIsolated,
+    );
+    expect(runMicroBenchmarksMock).toHaveBeenCalledWith(probe, expect.anything(), multiStat);
   });
 
   it("disables the button while running", async () => {
@@ -65,6 +83,7 @@ describe("MicroBenchPanel", () => {
       "fetch",
       vi.fn().mockResolvedValue({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) }),
     );
+    runMultiThreadWasmScoreMock.mockResolvedValue(null);
     runMicroBenchmarksMock.mockReturnValue(new Promise(() => {}));
 
     render(<MicroBenchPanel probeResult={fakeProbe()} />);
