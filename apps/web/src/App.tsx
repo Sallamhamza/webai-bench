@@ -7,6 +7,7 @@ import { CellList } from "./CellList";
 import { PresetPicker } from "./PresetPicker";
 import { RunPanel } from "./RunPanel";
 import { MethodologyPage } from "./MethodologyPage";
+import { MicroBenchPanel } from "./MicroBenchPanel";
 
 // E4-S2/S3: registry-driven cell selection (FR1.3, FR2.8-S) plus the actual run flow
 // (adapters, progress, Stop, results, JSON export). Selection state lives here since both
@@ -44,6 +45,7 @@ function BenchmarkSetup() {
 
   return (
     <>
+      <MicroBenchPanel probeResult={probeState.result} />
       <section>
         <h2>Benchmark setup</h2>
         <PresetPicker onSelect={handlePreset} />
