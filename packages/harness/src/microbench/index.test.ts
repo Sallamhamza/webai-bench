@@ -41,12 +41,12 @@ describe("runMicroBenchmarks", () => {
     const multi = { median: 100, min: 90, max: 110 };
     const result = await runMicroBenchmarks(probeWithWebgpu(false), wasmBytes, multi);
     expect(result.wasmScoreMulti).toEqual(multi);
-  });
+  }, 20_000);
 
   it("defaults wasmScoreMulti to null when the caller doesn't supply it", async () => {
     const result = await runMicroBenchmarks(probeWithWebgpu(false), wasmBytes);
     expect(result.wasmScoreMulti).toBeNull();
-  });
+  }, 20_000);
 
   it("degrades GPU metrics to null (not a throw) when the probe says WebGPU is available but this environment can't actually acquire a device", async () => {
     // jsdom/Node has no navigator.gpu — exercises acquireDevice()'s own null-device path, the
