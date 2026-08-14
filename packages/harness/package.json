@@ -7,7 +7,8 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:wasm": "asc wasm-src/dotproduct.ts -o src/microbench/wasm/dotproduct.wasm --optimize --runtime stub --exportMemory --noAssert"
   },
   "dependencies": {
     "@huggingface/transformers": "4.2.0",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.71",
+    "assemblyscript": "^0.28.20",
     "jsdom": "^25.0.1",
     "typescript": "^5.7.3",
     "vitest": "^3.0.4"
