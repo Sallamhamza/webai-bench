@@ -58,18 +58,22 @@ lot of real devices, not just mine.
   [`packages/harness/src/adapters/QUIRKS.md`](../packages/harness/src/adapters/QUIRKS.md) as I go
   and would rather find out about more of them from people who know the internals than from
   confused bug reports later.
-- If you have five minutes and a spare device: [live site link — TODO] and see what it reports.
-  Numbers export locally as JSON right now; nothing is collected without explicit opt-in later.
+- If you have five minutes and a spare device: https://main.webai-bench-web.pages.dev and see
+  what it reports. Numbers export locally as JSON right now; nothing is collected without
+  explicit opt-in later.
 
-Repo: [TODO — GitHub URL]. Apache-2.0 code, CC-BY-4.0 docs/dataset. Feedback, especially the kind
-that pokes holes in the approach, is genuinely what I'm here for at this stage.
+Repo: https://github.com/Sallamhamza/webai-bench. Apache-2.0 code, CC-BY-4.0 docs/dataset.
+Feedback, especially the kind that pokes holes in the approach, is genuinely what I'm here for at
+this stage.
 
 ---
 
 ## Posting checklist
 
-- [ ] Fill in live site URL once deployed
-- [ ] Fill in repo URL
+- [x] Fill in live site URL once deployed (https://main.webai-bench-web.pages.dev — set `main` as
+      the project's "Production branch" in the Cloudflare dashboard to also get the shorter bare
+      `webai-bench-web.pages.dev` domain, optional)
+- [x] Fill in repo URL
 - [ ] Post to WebLLM GitHub Discussions
 - [ ] Post to Transformers.js GitHub Discussions
 - [ ] Post to wherever else tok/s comparisons get hand-pasted (r/LocalLLaMA, relevant Discords —
