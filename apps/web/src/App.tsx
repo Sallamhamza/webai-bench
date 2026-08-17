@@ -7,6 +7,7 @@ import { CellList } from "./CellList";
 import { PresetPicker } from "./PresetPicker";
 import { RunPanel } from "./RunPanel";
 import { MethodologyPage } from "./MethodologyPage";
+import { CrashRecoveryBanner } from "./CrashRecoveryBanner";
 
 // E4-S2/S3: registry-driven cell selection (FR1.3, FR2.8-S) plus the actual run flow
 // (adapters, progress, Stop, results, JSON export). Selection state lives here since both
@@ -76,6 +77,8 @@ export function App() {
         Runs small AI models directly in your browser and measures how they perform on your device —
         nothing you run here leaves your machine unless you choose to share results.
       </p>
+
+      <CrashRecoveryBanner />
 
       <nav aria-label="Page">
         <button
