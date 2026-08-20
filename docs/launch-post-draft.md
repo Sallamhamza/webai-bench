@@ -79,5 +79,5 @@ this stage.
 - [ ] Post to wherever else tok/s comparisons get hand-pasted (r/LocalLLaMA, relevant Discords —
       pick venues where methodology critique is likely, not just traffic)
 - [ ] Start the DR-1 two-week clock from the first post's timestamp
-- [ ] Log every response (engagement, critique, or silence) somewhere durable — DR-1's pass/fail
-      call needs the actual count, not a vibe
+- [ ] Log every response (engagement, critique, or silence) in `docs/dr1-log.md` as it comes in —
+      DR-1's pass/fail call needs the actual count, not a vibe
