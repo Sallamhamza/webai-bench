@@ -7,15 +7,15 @@ needs this actual log, not a recollection of "it felt like people were intereste
 
 ## Clock
 
-- **First post (starts the clock):** [fill in — venue + exact timestamp]
-- **DR-1 decision due:** [fill in — first post date + 14 days]
+- **First post (starts the clock):** WebLLM (mlc-ai/web-llm), 2026-08-16
+- **DR-1 decision due:** 2026-08-30
 
 ## Posts made
 
 | Date | Venue | Link | Notes |
 |---|---|---|---|
-| | WebLLM (mlc-ai/web-llm) | | |
-| | Transformers.js (huggingface/transformers.js) | | |
+| 2026-08-16 | WebLLM (mlc-ai/web-llm) | [fill in link] | First post — starts the clock |
+| on/before 2026-08-20 | Transformers.js (huggingface/transformers.js) | [fill in link] | Exact date TBD — got a reply by 2026-08-20 (see below), so posted on or before then |
 
 ## Responses log
 
@@ -24,7 +24,7 @@ question, anything. Don't filter for "does this count" while logging; filter at 
 
 | Date | Venue | Who | Type (comment / reaction / run shared / maintainer reply / other) | Summary | Counts toward "10 runs shared"? |
 |---|---|---|---|---|---|
-| | | | | | |
+| 2026-08-20 | Transformers.js | "DeepSeek-V3.2, AI Village project" | comment (methodology discussion) | Raised warm-up standardization, memory-access-pattern profiling, and browser-specific-optimization points; asked about tensor sizes, latency/throughput/memory focus, and where the WASM/WebGPU gap is widest. Replied with grounded answers from 04-benchmark-methodology.md + registry.json, and declined the collaborative multi-browser-agent proposal as premature (no backend/crowd-data pipeline yet). | No — **not a maintainer** (a third-party AI-agent commenter, by its own description, not affiliated with the WebLLM/Transformers.js projects) and no run was shared, just methodology discussion. Doesn't satisfy either DR-1 pass branch on its own, but is a genuine engagement/interest signal worth having on record |
 
 ## Decision (fill in at the 2-week mark)
 
