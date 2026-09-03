@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   runSuite,
   type CellRunResult,
+  type MicroBenchResult,
   type ProbeResult,
   type SuiteCellSpec,
   type SuiteProgressEvent,
@@ -17,6 +18,11 @@ export interface RunPanelProps {
   cellViewModels: readonly CellViewModel[];
   selectedIds: ReadonlySet<string>;
   probeResult: ProbeResult;
+  /** Result of a MicroBenchPanel run, if one was completed before exporting — folded into the
+   * export's `micro` field so a visitor gets one combined JSON file instead of two separate
+   * ones. `null` (the default a caller can pass) just means "not measured," which is itself a
+   * valid schema value, not an error — see resultsExport.ts. */
+  microResult?: MicroBenchResult | null;
 }
 
 type RunState =
@@ -38,7 +44,12 @@ function downloadJson(filename: string, data: unknown) {
 // E4-S3: the actual run flow (FR2.1 orchestration, FR2.7 size warning + Stop, FR3.4 export).
 // Cell selection/greying is E4-S2's job (CellList/PresetPicker) — this component only cares
 // about turning an already-made selection into a real run.
-export function RunPanel({ cellViewModels, selectedIds, probeResult }: RunPanelProps) {
+export function RunPanel({
+  cellViewModels,
+  selectedIds,
+  probeResult,
+  microResult = null,
+}: RunPanelProps) {
   const [runState, setRunState] = useState<RunState>({ status: "idle" });
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -85,9 +96,12 @@ export function RunPanel({ cellViewModels, selectedIds, probeResult }: RunPanelP
 
   const handleExport = () => {
     if (runState.status !== "done") return;
-    void buildExportPayload(selectedCells, runState.results, REGISTRY.suite_version).then(
-      (payload) => downloadJson(`webai-bench-results-${Date.now()}.json`, payload),
-    );
+    void buildExportPayload(
+      selectedCells,
+      runState.results,
+      REGISTRY.suite_version,
+      microResult,
+    ).then((payload) => downloadJson(`webai-bench-results-${Date.now()}.json`, payload));
   };
 
   return (
@@ -167,6 +181,11 @@ export function RunPanel({ cellViewModels, selectedIds, probeResult }: RunPanelP
           <button type="button" onClick={() => setRunState({ status: "idle" })}>
             Run again
           </button>
+          <p>
+            {microResult
+              ? "Includes your device benchmark results from above."
+              : "Run “Device benchmarks” above first if you'd like those included too — this export only has model-cell results right now."}
+          </p>
         </div>
       ) : null}
     </section>

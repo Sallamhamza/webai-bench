@@ -77,6 +77,51 @@ describe("MicroBenchPanel", () => {
     expect(runMicroBenchmarksMock).toHaveBeenCalledWith(probe, expect.anything(), multiStat);
   });
 
+  it("calls onComplete with the result so a caller can lift it up (e.g. into RunPanel's export)", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) }),
+    );
+    runMultiThreadWasmScoreMock.mockResolvedValue(null);
+    const result: MicroBenchResult = {
+      matmulF32Gflops: null,
+      matmulF16Gflops: null,
+      memBwGbps: null,
+      wasmScoreSingle: { median: 1, min: 1, max: 1 },
+      wasmScoreMulti: null,
+    };
+    runMicroBenchmarksMock.mockResolvedValue(result);
+    const onComplete = vi.fn();
+
+    render(<MicroBenchPanel probeResult={fakeProbe()} onComplete={onComplete} />);
+    await user.click(screen.getByRole("button", { name: "Run device benchmarks" }));
+
+    await screen.findByText("1 ops/s");
+    expect(onComplete).toHaveBeenCalledWith(result);
+  });
+
+  it("works fine without onComplete (it's optional)", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) }),
+    );
+    runMultiThreadWasmScoreMock.mockResolvedValue(null);
+    runMicroBenchmarksMock.mockResolvedValue({
+      matmulF32Gflops: null,
+      matmulF16Gflops: null,
+      memBwGbps: null,
+      wasmScoreSingle: null,
+      wasmScoreMulti: null,
+    });
+
+    render(<MicroBenchPanel probeResult={fakeProbe()} />);
+    await expect(
+      user.click(screen.getByRole("button", { name: "Run device benchmarks" })),
+    ).resolves.not.toThrow();
+  });
+
   it("disables the button while running", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(

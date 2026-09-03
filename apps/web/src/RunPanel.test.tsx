@@ -1,17 +1,27 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { CellRunResult, ProbeResult, SuiteRunHandle } from "@webai-bench/harness";
+import type {
+  CellRunResult,
+  MicroBenchResult,
+  ProbeResult,
+  SuiteRunHandle,
+} from "@webai-bench/harness";
 import { REGISTRY } from "@webai-bench/registry";
 import { RunPanel } from "./RunPanel";
 import type { CellViewModel } from "./registryView";
 
 const runSuiteMock = vi.hoisted(() => vi.fn());
+const buildExportPayloadMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@webai-bench/harness", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@webai-bench/harness")>();
   return { ...actual, runSuite: runSuiteMock };
 });
+
+// Only mocked for the export-related test below — every other test in this file never clicks
+// "Export results", so the real buildExportPayload never runs for them.
+vi.mock("./resultsExport", () => ({ buildExportPayload: buildExportPayloadMock }));
 
 function fakeProbe(): ProbeResult {
   return {
@@ -61,6 +71,9 @@ function mockHandleResolving(results: Map<string, CellRunResult>): SuiteRunHandl
 describe("RunPanel", () => {
   afterEach(() => {
     runSuiteMock.mockReset();
+    buildExportPayloadMock.mockReset();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("starts immediately (no size-warning gate) for a small selection", async () => {
@@ -171,5 +184,75 @@ describe("RunPanel", () => {
       <RunPanel cellViewModels={allRunnable()} selectedIds={new Set()} probeResult={fakeProbe()} />,
     );
     expect(screen.getByRole("button", { name: "Start run" })).toBeDisabled();
+  });
+
+  describe("export + microResult", () => {
+    it("passes the microResult prop through to buildExportPayload when exporting", async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:fake"), revokeObjectURL: vi.fn() });
+      // downloadJson() clicks a real <a href="blob:...">; jsdom doesn't implement navigation and
+      // logs a noisy (non-fatal) error for it. We only care that the click happened and
+      // buildExportPayload got the right args, not that a real download navigation occurs.
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      const smallCellId = "all-minilm-l6-v2__default__transformers.js__wasm";
+      const results = new Map([[smallCellId, successResult()]]);
+      runSuiteMock.mockReturnValue(mockHandleResolving(results));
+      buildExportPayloadMock.mockResolvedValue({
+        suite_version: "1.0.0",
+        exported_at: "now",
+        cells: [],
+      });
+      const micro: MicroBenchResult = {
+        matmulF32Gflops: { median: 1, min: 1, max: 1 },
+        matmulF16Gflops: null,
+        memBwGbps: null,
+        wasmScoreSingle: null,
+        wasmScoreMulti: null,
+      };
+      const probe = fakeProbe();
+
+      render(
+        <RunPanel
+          cellViewModels={allRunnable()}
+          selectedIds={new Set([smallCellId])}
+          probeResult={probe}
+          microResult={micro}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Start run" }));
+      await screen.findByText(smallCellId);
+      expect(
+        screen.getByText("Includes your device benchmark results from above."),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Export results (JSON)" }));
+
+      expect(buildExportPayloadMock).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ cell_id: smallCellId })]),
+        results,
+        REGISTRY.suite_version,
+        micro,
+      );
+    });
+
+    it("hints that device benchmarks aren't included when microResult wasn't supplied", async () => {
+      const user = userEvent.setup();
+      const smallCellId = "all-minilm-l6-v2__default__transformers.js__wasm";
+      runSuiteMock.mockReturnValue(mockHandleResolving(new Map([[smallCellId, successResult()]])));
+
+      render(
+        <RunPanel
+          cellViewModels={allRunnable()}
+          selectedIds={new Set([smallCellId])}
+          probeResult={fakeProbe()}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Start run" }));
+      await screen.findByText(smallCellId);
+
+      expect(screen.getByText(/only has model-cell results right now/)).toBeInTheDocument();
+    });
   });
 });
