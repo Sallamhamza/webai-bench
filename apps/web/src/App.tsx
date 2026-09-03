@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { MicroBenchResult } from "@webai-bench/harness";
 import { Sp5ToyIngest } from "./Sp5ToyIngest";
 import { useProbe } from "./useProbe";
 import { buildCellViewModels } from "./registryView";
@@ -15,6 +16,7 @@ import { MicroBenchPanel } from "./MicroBenchPanel";
 function BenchmarkSetup() {
   const probeState = useProbe();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [microResult, setMicroResult] = useState<MicroBenchResult | null>(null);
 
   const cellViewModels = useMemo(
     () => (probeState.status === "done" ? buildCellViewModels(probeState.result) : []),
@@ -45,7 +47,7 @@ function BenchmarkSetup() {
 
   return (
     <>
-      <MicroBenchPanel probeResult={probeState.result} />
+      <MicroBenchPanel probeResult={probeState.result} onComplete={setMicroResult} />
       <section>
         <h2>Benchmark setup</h2>
         <PresetPicker onSelect={handlePreset} />
@@ -59,6 +61,7 @@ function BenchmarkSetup() {
         cellViewModels={cellViewModels}
         selectedIds={selectedIds}
         probeResult={probeState.result}
+        microResult={microResult}
       />
     </>
   );

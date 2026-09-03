@@ -9,6 +9,11 @@ import { runMultiThreadWasmScore } from "./runMultiThreadWasmScore";
 
 export interface MicroBenchPanelProps {
   probeResult: ProbeResult;
+  /** Called once a run finishes, so a caller (App.tsx's BenchmarkSetup) can lift the result up
+   * and hand it to RunPanel's export — without this, a model-cell export and a device-benchmark
+   * run produce two separate JSON files instead of one combined one. Optional: MicroBenchPanel
+   * is fully usable standalone, this is purely for the caller that wants to connect the two. */
+  onComplete?: (result: MicroBenchResult) => void;
 }
 
 type MicroBenchState =
@@ -22,7 +27,7 @@ function formatStat(stat: { median: number } | null, unit: string, digits = 1): 
 // separate from the model-cell run flow (RunPanel) because these aren't per-cell measurements,
 // they're per-device ones (packages/schema's MicroSchema is a top-level sibling of `cells` in
 // the submission payload, not part of it).
-export function MicroBenchPanel({ probeResult }: MicroBenchPanelProps) {
+export function MicroBenchPanel({ probeResult, onComplete }: MicroBenchPanelProps) {
   const [state, setState] = useState<MicroBenchState>({ status: "idle" });
 
   const handleRun = () => {
@@ -38,6 +43,7 @@ export function MicroBenchPanel({ probeResult }: MicroBenchPanelProps) {
       ]);
       const result = await runMicroBenchmarks(probeResult, wasmBytes, wasmScoreMulti);
       setState({ status: "done", result });
+      onComplete?.(result);
     })();
   };
 
